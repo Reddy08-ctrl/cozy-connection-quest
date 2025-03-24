@@ -7,7 +7,7 @@ import MatchCard from '@/components/matches/MatchCard';
 import { matches } from '@/utils/mockData';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowPathIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const Matches = () => {
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ const Matches = () => {
             {loading ? (
               <div className="flex items-center justify-center min-h-[50vh]">
                 <div className="flex flex-col items-center space-y-4">
-                  <ArrowPathIcon className="w-10 h-10 text-primary animate-spin" />
+                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
                   <p className="text-muted-foreground">Finding your matches...</p>
                 </div>
               </div>

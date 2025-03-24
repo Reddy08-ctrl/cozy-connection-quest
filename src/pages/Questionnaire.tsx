@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +7,7 @@ import Layout from '@/components/layout/Layout';
 import PageTransition from '@/components/ui/PageTransition';
 import { Progress } from '@/components/ui/progress';
 import { questions } from '@/utils/mockData';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const Questionnaire = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
