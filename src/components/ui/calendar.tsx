@@ -1,66 +1,12 @@
+
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
-
-interface CustomCaptionProps {
-  displayMonth?: Date
-  onChange: (date: Date) => void
-}
-
-function CustomCaption({ displayMonth, onChange }: CustomCaptionProps) {
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-
-  const currentMonthIndex = displayMonth ? displayMonth.getMonth() : 0;
-  const currentYear = displayMonth ? displayMonth.getFullYear() : new Date().getFullYear();
-
-  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const monthIndex = parseInt(event.target.value);
-    const newDate = new Date(currentYear, monthIndex, 1);
-    onChange(newDate);
-  };
-
-  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const year = parseInt(event.target.value);
-    const newDate = new Date(year, currentMonthIndex, 1);
-    onChange(newDate);
-  };
-
-  return (
-    <div className="flex justify-between items-center">
-      <select
-        className="bg-transparent border-none text-lg font-semibold pr-2"
-        value={currentMonthIndex}
-        onChange={handleMonthChange}
-      >
-        {months.map((month, index) => (
-          <option key={index} value={index}>
-            {month}
-          </option>
-        ))}
-      </select>
-      <select
-        className="bg-transparent border-none text-lg font-semibold"
-        value={currentYear}
-        onChange={handleYearChange}
-      >
-        {Array.from({ length: 101 }, (_, i) => currentYear - 50 + i).map((year) => (
-          <option key={year} value={year}>
-            {year}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
 
 function Calendar({
   className,
@@ -109,17 +55,11 @@ function Calendar({
       components={{
         IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
-        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => {
-          if (props.displayMonth && date) {
-            props.onMonthChange?.(date);
-          }
-        }} />,
       }}
       {...props}
     />
-  );
+  )
 }
-
 Calendar.displayName = "Calendar"
 
 export { Calendar }

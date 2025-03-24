@@ -25,13 +25,14 @@ const App = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        // Initialize database (now only localStorage)
         await initializeDatabase();
         setIsInitialized(true);
         console.log("Database initialized successfully");
       } catch (error) {
         console.error("Failed to initialize database:", error);
-        toast.error("Database connection failed. Using local storage instead.");
-        setIsInitialized(true); // Continue with fallback
+        toast.error("Failed to initialize database");
+        setIsInitialized(true); // Continue anyway
       }
     };
     
@@ -43,7 +44,7 @@ const App = () => {
       <div className="h-screen w-full flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-serif mb-4">Initializing...</h2>
-          <p className="text-muted-foreground">Connecting to database, please wait...</p>
+          <p className="text-muted-foreground">Setting up the application, please wait...</p>
         </div>
       </div>
     );
