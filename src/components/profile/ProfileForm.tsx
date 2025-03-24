@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useProfileData } from '@/hooks/use-profile-data';
 
 const ProfileForm = () => {
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -22,6 +23,7 @@ const ProfileForm = () => {
   const [location, setLocation] = useState('');
   const [gender, setGender] = useState('');
   const [date, setDate] = React.useState<Date | undefined>();
+  const { saveProfile, isLoading } = useProfileData();
   
   const navigate = useNavigate();
 
@@ -37,11 +39,30 @@ const ProfileForm = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // For demo purposes
-    toast.success('Profile saved successfully');
-    navigate('/questionnaire');
+    
+    if (!name || !gender || !date || !location || !bio) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      await saveProfile({
+        name,
+        avatar: avatar || '',
+        bio,
+        location,
+        gender,
+        dateOfBirth: date,
+      });
+      
+      toast.success('Profile saved successfully');
+      navigate('/questionnaire');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to save profile. Please try again.');
+    }
   };
   
   return (
@@ -126,7 +147,11 @@ const ProfileForm = () => {
                   selected={date}
                   onSelect={setDate}
                   initialFocus
+                  captionLayout="dropdown"
+                  fromYear={1940}
+                  toYear={new Date().getFullYear()}
                   disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                  className="rounded-md border"
                 />
               </PopoverContent>
             </Popover>
@@ -156,7 +181,9 @@ const ProfileForm = () => {
           />
         </div>
 
-        <Button type="submit" className="w-full">Continue</Button>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? 'Saving...' : 'Continue'}
+        </Button>
       </form>
     </motion.div>
   );
