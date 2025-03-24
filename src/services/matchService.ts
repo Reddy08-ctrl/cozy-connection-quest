@@ -2,8 +2,6 @@
 import { query } from './database';
 import { getUserAnswers } from './questionnaireService';
 import { getUserProfile } from './userService';
-import natural from 'natural';
-import { tokenizer } from '@nlpjs/lang-en';
 
 export interface Match {
   id: number;
@@ -20,9 +18,6 @@ export interface Match {
   };
 }
 
-// TF-IDF for text similarity
-const tfidf = new natural.TfIdf();
-
 // Calculate the age from date of birth
 const calculateAge = (dateOfBirth: Date): number => {
   const today = new Date();
@@ -37,11 +32,33 @@ const calculateAge = (dateOfBirth: Date): number => {
   return age;
 };
 
+// Simple function to calculate the similarity between two strings
+const calculateStringSimilarity = (str1: string, str2: string): number => {
+  // Convert to lowercase
+  const s1 = str1.toLowerCase();
+  const s2 = str2.toLowerCase();
+  
+  // Count matching words
+  const words1 = s1.split(/\s+/);
+  const words2 = s2.split(/\s+/);
+  
+  // Create a set of all unique words
+  const uniqueWords = new Set([...words1, ...words2]);
+  
+  // Count words that appear in both strings
+  let matchingWords = 0;
+  uniqueWords.forEach(word => {
+    if (words1.includes(word) && words2.includes(word)) {
+      matchingWords++;
+    }
+  });
+  
+  // Jaccard similarity coefficient
+  return uniqueWords.size > 0 ? matchingWords / uniqueWords.size : 0;
+};
+
 // Calculate similarity between two sets of answers
 const calculateSimilarity = (userAnswers: any[], otherUserAnswers: any[]): number => {
-  // Prepare documents for TF-IDF comparison
-  tfidf.addDocument(''); // Reset
-  
   // Create a map of question_id to answer for quick lookup
   const userAnswersMap = new Map();
   userAnswers.forEach(answer => {
@@ -61,16 +78,10 @@ const calculateSimilarity = (userAnswers: any[], otherUserAnswers: any[]): numbe
     if (otherUserAnswersMap.has(questionId)) {
       const otherUserAnswer = otherUserAnswersMap.get(questionId);
       
-      // Tokenize and normalize the answers
-      const userTokens = tokenizer.tokenize(userAnswer.toLowerCase());
-      const otherUserTokens = tokenizer.tokenize(otherUserAnswer.toLowerCase());
+      // Calculate string similarity
+      const similarity = calculateStringSimilarity(userAnswer, otherUserAnswer);
       
-      // Calculate Jaccard similarity
-      const union = new Set([...userTokens, ...otherUserTokens]);
-      const intersection = userTokens.filter(token => otherUserTokens.includes(token));
-      const jaccardSimilarity = intersection.length / union.size;
-      
-      totalSimilarity += jaccardSimilarity;
+      totalSimilarity += similarity;
       questionCount++;
     }
   }
@@ -109,17 +120,10 @@ export const findMatches = async (userId: number): Promise<Match[]> => {
     
     // Calculate match scores with other users
     for (const otherUser of otherUsers) {
-      // Skip if gender preferences don't align (simplified logic)
-      // In a real app, you'd check user preferences more thoroughly
-      
       const otherUserAnswers = await getUserAnswers(otherUser.id);
       
       // Calculate similarity score
       const similarityScore = calculateSimilarity(userAnswers, otherUserAnswers);
-      
-      // Apply AI adjustment based on profile information
-      // This is a simplified version of what a real AI model would do
-      let adjustedScore = similarityScore;
       
       // Check if a match already exists
       const existingMatches = await query(
@@ -137,28 +141,28 @@ export const findMatches = async (userId: number): Promise<Match[]> => {
         matchStatus = existingMatch.status;
         
         // Update the match score if it has changed
-        if (Math.abs(existingMatch.match_score - adjustedScore) > 0.1) {
+        if (Math.abs(existingMatch.match_score - similarityScore) > 0.1) {
           await query(
             'UPDATE matches SET match_score = ? WHERE id = ?',
-            [adjustedScore, matchId]
+            [similarityScore, matchId]
           );
         }
       } else {
         // Create a new match
         const result = await query(
           'INSERT INTO matches (user_id_1, user_id_2, match_score) VALUES (?, ?, ?)',
-          [userId, otherUser.id, adjustedScore]
+          [userId, otherUser.id, similarityScore]
         );
         matchId = result.insertId;
       }
       
       // Add to matches list if the score is above a threshold
-      if (adjustedScore > 0.4) { // Arbitrary threshold
+      if (similarityScore > 0.4) { // Arbitrary threshold
         matches.push({
           id: matchId,
           userId,
           matchedUserId: otherUser.id,
-          matchScore: adjustedScore,
+          matchScore: similarityScore,
           status: matchStatus as 'pending' | 'accepted' | 'rejected',
           matchedUser: {
             name: otherUser.name,
