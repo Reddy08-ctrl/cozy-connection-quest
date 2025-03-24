@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -36,10 +35,7 @@ const MatchesPage = () => {
   } = useMatches();
   
   const handleAccept = async (matchId: number) => {
-    const success = await acceptMatch(matchId);
-    if (success) {
-      // Could navigate to chat or show a success message
-    }
+    await acceptMatch(matchId);
   };
   
   const handleReject = async (matchId: number) => {

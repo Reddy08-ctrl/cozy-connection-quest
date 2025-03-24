@@ -1,4 +1,3 @@
-
 import { User } from './userService';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -48,7 +47,7 @@ const extractTopics = (text: string): string[] => {
 export const getAiChatSuggestions = async (
   userProfile: User, 
   otherUserProfile: User,
-  messageHistory: { content: string; senderId: number }[]
+  messageHistory: { content: string; senderId: string }[]
 ): Promise<AiSuggestion[]> => {
   try {
     // Convert message history to the format expected by the AI assistant
@@ -121,7 +120,7 @@ export const getAiChatSuggestions = async (
 export const generateChatSuggestions = async (
   userProfile: User,
   otherUserProfile: User,
-  messageHistory: { content: string; senderId: number }[]
+  messageHistory: { content: string; senderId: string }[]
 ): Promise<AiSuggestion[]> => {
   try {
     // Try to get AI-powered suggestions

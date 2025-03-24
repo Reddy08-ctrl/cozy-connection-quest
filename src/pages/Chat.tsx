@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
@@ -107,7 +106,7 @@ const Chat = () => {
           {otherUser ? (
             <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarImage src={otherUser.avatar} />
+                <AvatarImage src={otherUser.avatar || undefined} />
                 <AvatarFallback>{otherUser.name?.charAt(0)}</AvatarFallback>
               </Avatar>
               <div>
@@ -126,7 +125,7 @@ const Chat = () => {
             </div>
           ) : (
             <ChatInterface
-              messages={messages}
+              messageList={messages}
               currentUserId={user?.id || ""}
             />
           )}

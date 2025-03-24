@@ -48,11 +48,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   setUser({
                     id: session.user.id,
                     email: session.user.email!,
-                    name: profile.name,
-                    avatar: profile.avatar,
-                    bio: profile.bio,
-                    location: profile.location,
-                    gender: profile.gender,
+                    name: profile.name || '',
+                    avatar: profile.avatar || null,
+                    bio: profile.bio || null,
+                    location: profile.location || null,
+                    gender: profile.gender || null,
                     dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
                     created_at: profile.created_at ? new Date(profile.created_at) : undefined
                   });
@@ -87,11 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser({
               id: session.user.id,
               email: session.user.email!,
-              name: profile.name,
-              avatar: profile.avatar,
-              bio: profile.bio,
-              location: profile.location,
-              gender: profile.gender,
+              name: profile.name || '',
+              avatar: profile.avatar || null,
+              bio: profile.bio || null,
+              location: profile.location || null,
+              gender: profile.gender || null,
               dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
               created_at: profile.created_at ? new Date(profile.created_at) : undefined
             });
