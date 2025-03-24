@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { User, getUserProfile } from './userService';
 
@@ -47,17 +46,17 @@ export const getPotentialMatches = async (userId: string): Promise<User[]> => {
       return [];
     }
     
-    // Map to User objects
+    // Map to User objects with fallbacks for missing properties
     return (potentialMatches || []).map(profile => ({
-      id: profile.id,
-      email: profile.email,
-      name: profile.name,
-      avatar: profile.avatar,
-      bio: profile.bio,
-      location: profile.location,
-      gender: profile.gender,
-      dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
-      created_at: profile.created_at ? new Date(profile.created_at) : new Date()
+      id: profile?.id,
+      email: profile?.email,
+      name: profile?.name,
+      avatar: profile?.avatar || '', // Fallback value if avatar is undefined
+      bio: profile?.bio,
+      location: profile?.location,
+      gender: profile?.gender,
+      dateOfBirth: profile?.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+      created_at: profile?.created_at ? new Date(profile.created_at) : new Date()
     }));
   } catch (error) {
     console.error('Error getting potential matches:', error);
@@ -183,7 +182,9 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
     return (matches || []).map(match => {
       // Determine which user is the match (not the current user)
       const isUser1 = match.user_id_1 === userId;
-      const otherUser = isUser1 ? match.profiles!matches_user_id_2_fkey : match.profiles!matches_user_id_1_fkey;
+      const otherUser = isUser1 
+        ? match.profiles?.['matches_user_id_2_fkey'] 
+        : match.profiles?.['matches_user_id_1_fkey'];
       
       if (!otherUser) {
         console.error('Match user data is missing for match:', match.id);
@@ -196,7 +197,7 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
           id: otherUser.id,
           email: otherUser.email,
           name: otherUser.name,
-          avatar: otherUser.avatar,
+          avatar: otherUser.avatar || '', // Fallback to empty string if undefined
           bio: otherUser.bio,
           location: otherUser.location,
           gender: otherUser.gender,
