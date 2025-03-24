@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/use-auth';
 
 type FormType = 'login' | 'register';
 
@@ -14,22 +15,44 @@ const AuthForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { login, register } = useAuth();
 
   const toggleFormType = () => {
     setFormType(formType === 'login' ? 'register' : 'login');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    // For demo purposes only
-    if (formType === 'login') {
-      toast.success('Login successful');
-      navigate('/profile');
-    } else {
-      toast.success('Registration successful');
-      navigate('/profile');
+    try {
+      let success = false;
+      
+      if (formType === 'login') {
+        success = await login({ email, password });
+        if (success) {
+          toast.success('Login successful');
+          navigate('/profile');
+        }
+      } else {
+        if (!name.trim()) {
+          toast.error('Please enter your name');
+          return;
+        }
+        
+        success = await register({ email, password, name });
+        if (success) {
+          toast.success('Registration successful! Check your email for verification.');
+          navigate('/profile');
+        }
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -92,8 +115,15 @@ const AuthForm = () => {
           />
         </div>
 
-        <Button type="submit" className="w-full">
-          {formType === 'login' ? 'Sign In' : 'Create Account'}
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <span className="flex items-center">
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+              {formType === 'login' ? 'Signing In...' : 'Creating Account...'}
+            </span>
+          ) : (
+            formType === 'login' ? 'Sign In' : 'Create Account'
+          )}
         </Button>
       </form>
 

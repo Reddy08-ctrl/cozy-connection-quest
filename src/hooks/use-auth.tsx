@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (profileError) {
                   console.error('Error getting user profile from session:', profileError);
                   setUser(null);
-                } else {
+                } else if (profile) {
                   setUser({
                     id: session.user.id,
                     email: session.user.email!,
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (profileError) {
             console.error('Error getting user profile from initial session:', profileError);
             setUser(null);
-          } else {
+          } else if (profile) {
             setUser({
               id: session.user.id,
               email: session.user.email!,

@@ -1,9 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import bcrypt from 'bcryptjs';
 
 export interface User {
-  id: number;
+  id: string; // Changed from number to string
   email: string;
   name: string;
   avatar?: string;
@@ -70,7 +69,7 @@ export const registerUser = async (userData: RegisterData): Promise<User> => {
     }
     
     return {
-      id: authData.user.id,
+      id: authData.user.id, // This is now a string
       email: authData.user.email!,
       name: profile?.name || name,
       avatar: profile?.avatar,
@@ -118,15 +117,15 @@ export const loginUser = async (credentials: LoginCredentials): Promise<User> =>
     }
     
     return {
-      id: authData.user.id,
+      id: authData.user.id, // This is now a string
       email: authData.user.email!,
-      name: profile.name,
-      avatar: profile.avatar,
-      bio: profile.bio,
-      location: profile.location,
-      gender: profile.gender,
-      dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
-      created_at: profile.created_at ? new Date(profile.created_at) : new Date()
+      name: profile?.name || '',
+      avatar: profile?.avatar || '',
+      bio: profile?.bio || '',
+      location: profile?.location || '',
+      gender: profile?.gender || '',
+      dateOfBirth: profile?.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+      created_at: profile?.created_at ? new Date(profile.created_at) : new Date()
     };
   } catch (error) {
     console.error('Error logging in:', error);
@@ -160,15 +159,15 @@ export const updateUserProfile = async (userId: string, profileData: UserProfile
     }
     
     return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      avatar: data.avatar,
-      bio: data.bio,
-      location: data.location,
-      gender: data.gender,
-      dateOfBirth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
-      created_at: data.created_at ? new Date(data.created_at) : undefined
+      id: data?.id || userId,
+      email: data?.email || '',
+      name: data?.name || name,
+      avatar: data?.avatar || avatar,
+      bio: data?.bio || bio,
+      location: data?.location || location,
+      gender: data?.gender || gender,
+      dateOfBirth: data?.date_of_birth ? new Date(data.date_of_birth) : dateOfBirth,
+      created_at: data?.created_at ? new Date(data.created_at) : new Date()
     };
   } catch (error) {
     console.error('Error updating user profile:', error);
@@ -177,7 +176,7 @@ export const updateUserProfile = async (userId: string, profileData: UserProfile
 };
 
 // Get user profile
-export const getUserProfile = async (userId: string | number): Promise<User> => {
+export const getUserProfile = async (userId: string): Promise<User> => {
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -191,15 +190,15 @@ export const getUserProfile = async (userId: string | number): Promise<User> => 
     }
     
     return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      avatar: data.avatar,
-      bio: data.bio,
-      location: data.location,
-      gender: data.gender,
-      dateOfBirth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
-      created_at: data.created_at ? new Date(data.created_at) : undefined
+      id: data?.id || userId,
+      email: data?.email || '',
+      name: data?.name || '',
+      avatar: data?.avatar || '',
+      bio: data?.bio || '',
+      location: data?.location || '',
+      gender: data?.gender || '',
+      dateOfBirth: data?.date_of_birth ? new Date(data.date_of_birth) : undefined,
+      created_at: data?.created_at ? new Date(data.created_at) : new Date()
     };
   } catch (error) {
     console.error('Error getting user profile:', error);

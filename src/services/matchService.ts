@@ -1,11 +1,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { User } from './userService';
-import { getUserAnswers } from './questionnaireService';
+import { User } from '@/services/userService';
+import { getUserAnswers } from '@/services/questionnaireService';
 
 export interface Match {
   id: number;
-  userId: string;
+  userId: string; // Changed from number to string
   matchedUser: User;
   matchScore: number;
   status: 'pending' | 'accepted' | 'rejected';
@@ -153,24 +153,26 @@ export const findMatches = async (userId: string): Promise<Match[]> => {
           continue;
         }
         
-        matches.push({
-          id: newMatch.id,
-          userId,
-          matchedUser: {
-            id: profile.id,
-            email: profile.email,
-            name: profile.name,
-            avatar: profile.avatar,
-            bio: profile.bio,
-            location: profile.location,
-            gender: profile.gender,
-            dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
-            created_at: profile.created_at ? new Date(profile.created_at) : undefined
-          },
-          matchScore,
-          status: 'pending',
-          createdAt: new Date(newMatch.created_at)
-        });
+        if (newMatch) {
+          matches.push({
+            id: newMatch.id,
+            userId,
+            matchedUser: {
+              id: profile.id,
+              email: profile.email,
+              name: profile.name,
+              avatar: profile.avatar,
+              bio: profile.bio,
+              location: profile.location,
+              gender: profile.gender,
+              dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+              created_at: profile.created_at ? new Date(profile.created_at) : undefined
+            },
+            matchScore,
+            status: 'pending',
+            createdAt: new Date(newMatch.created_at)
+          });
+        }
       }
     }
     
@@ -231,29 +233,35 @@ export const getAcceptedMatches = async (userId: string): Promise<Match[]> => {
     }
     
     // Transform the data
-    return (data || []).map(match => {
+    const matches: Match[] = [];
+    
+    for (const match of data || []) {
       const isUserOne = match.user_id_1 === userId;
       const otherUserProfile = isUserOne ? match.profiles2 : match.profiles;
       
-      return {
-        id: match.id,
-        userId,
-        matchedUser: {
-          id: otherUserProfile.id,
-          email: otherUserProfile.email,
-          name: otherUserProfile.name,
-          avatar: otherUserProfile.avatar,
-          bio: otherUserProfile.bio,
-          location: otherUserProfile.location,
-          gender: otherUserProfile.gender,
-          dateOfBirth: otherUserProfile.date_of_birth ? new Date(otherUserProfile.date_of_birth) : undefined,
-          created_at: otherUserProfile.created_at ? new Date(otherUserProfile.created_at) : undefined
-        },
-        matchScore: match.match_score,
-        status: match.status,
-        createdAt: new Date(match.created_at)
-      };
-    });
+      if (otherUserProfile) {
+        matches.push({
+          id: match.id,
+          userId,
+          matchedUser: {
+            id: otherUserProfile.id,
+            email: otherUserProfile.email,
+            name: otherUserProfile.name,
+            avatar: otherUserProfile.avatar,
+            bio: otherUserProfile.bio,
+            location: otherUserProfile.location,
+            gender: otherUserProfile.gender,
+            dateOfBirth: otherUserProfile.date_of_birth ? new Date(otherUserProfile.date_of_birth) : undefined,
+            created_at: otherUserProfile.created_at ? new Date(otherUserProfile.created_at) : undefined
+          },
+          matchScore: match.match_score,
+          status: match.status,
+          createdAt: new Date(match.created_at)
+        });
+      }
+    }
+    
+    return matches;
   } catch (error) {
     console.error('Error getting accepted matches:', error);
     return [];
