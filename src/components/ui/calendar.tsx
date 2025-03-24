@@ -125,7 +125,7 @@ function Calendar({
       components={{
         IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
-        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => props.onMonthChange?.(date)} />,
+        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => props.displayMonth && date ? props.onMonthSelect?.(date.getMonth(), date.getFullYear()) : undefined} />,
       }}
       {...props}
     />

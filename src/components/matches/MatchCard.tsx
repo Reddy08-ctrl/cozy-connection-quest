@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Heart, HeartOff, Star } from 'lucide-react';
 
-interface MatchCardProps {
+export interface MatchCardProps {
   match: {
     id: string;
     name: string;
@@ -18,9 +18,12 @@ interface MatchCardProps {
     compatibility: number;
     interests: string[];
   };
+  onAccept?: () => Promise<boolean>;
+  onReject?: () => Promise<boolean>;
+  isFavorite?: boolean;
 }
 
-const MatchCard = ({ match }: MatchCardProps) => {
+const MatchCard = ({ match, onAccept, onReject, isFavorite }: MatchCardProps) => {
   const navigate = useNavigate();
   
   return (
@@ -68,6 +71,7 @@ const MatchCard = ({ match }: MatchCardProps) => {
               size="icon" 
               variant="outline" 
               className="rounded-full flex-1 bg-white/20 border-white/30 hover:bg-destructive/20 hover:text-destructive"
+              onClick={onReject}
             >
               <HeartOff className="h-5 w-5" />
               <span className="sr-only">Decline</span>
@@ -87,6 +91,7 @@ const MatchCard = ({ match }: MatchCardProps) => {
               size="icon" 
               variant="outline" 
               className="rounded-full flex-1 bg-white/20 border-white/30 hover:bg-primary/20 hover:text-primary"
+              onClick={onAccept}
             >
               <Heart className="h-5 w-5" />
               <span className="sr-only">Like</span>
