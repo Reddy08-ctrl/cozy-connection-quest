@@ -1,21 +1,151 @@
-
 import { toast } from 'sonner';
+import mysql from 'mysql2/promise';
+import { dbConfig } from '@/config/database';
 
-// Database tables structure in localStorage
+// Create a connection pool
+const pool = mysql.createPool(dbConfig);
+
+// Initialize the database with required tables
+export const initializeDatabase = async (): Promise<boolean> => {
+  try {
+    const connection = await pool.getConnection();
+    
+    // Create users table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        avatar LONGTEXT,
+        bio TEXT,
+        location VARCHAR(255),
+        gender VARCHAR(50),
+        date_of_birth DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Create questions table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS questions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        question TEXT NOT NULL,
+        category VARCHAR(100) NOT NULL
+      )
+    `);
+    
+    // Create user_answers table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_answers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        question_id INT NOT NULL,
+        answer TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (question_id) REFERENCES questions(id)
+      )
+    `);
+    
+    // Create matches table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS matches (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id_1 INT NOT NULL,
+        user_id_2 INT NOT NULL,
+        match_score FLOAT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id_1) REFERENCES users(id),
+        FOREIGN KEY (user_id_2) REFERENCES users(id)
+      )
+    `);
+    
+    // Create messages table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sender_id INT NOT NULL,
+        receiver_id INT NOT NULL,
+        content TEXT NOT NULL,
+        read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sender_id) REFERENCES users(id),
+        FOREIGN KEY (receiver_id) REFERENCES users(id)
+      )
+    `);
+    
+    // Create events table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS events (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        creator_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        location VARCHAR(255),
+        event_date DATETIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (creator_id) REFERENCES users(id)
+      )
+    `);
+    
+    // Create event_invitations table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS event_invitations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        event_id INT NOT NULL,
+        user_id INT NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+    
+    // Insert default questions if the table is empty
+    const [rows] = await connection.execute('SELECT COUNT(*) as count FROM questions');
+    const { count } = (rows as any)[0];
+    
+    if (count === 0) {
+      const defaultQuestions = [
+        { question: 'What are your top three hobbies?', category: 'interests' },
+        { question: 'How do you prefer to spend your weekends?', category: 'lifestyle' },
+        { question: 'What is your ideal vacation destination?', category: 'travel' },
+        { question: 'Describe your perfect date.', category: 'relationships' },
+        { question: 'What values are most important to you in a relationship?', category: 'values' },
+        { question: 'Do you prefer outdoor or indoor activities?', category: 'lifestyle' },
+        { question: 'Are you a morning person or a night owl?', category: 'personality' },
+        { question: 'What type of books/movies/TV shows do you enjoy?', category: 'entertainment' },
+        { question: 'Do you have any pets or would you like to have pets?', category: 'lifestyle' },
+        { question: 'What are your career goals?', category: 'goals' }
+      ];
+      
+      for (const q of defaultQuestions) {
+        await connection.execute(
+          'INSERT INTO questions (question, category) VALUES (?, ?)',
+          [q.question, q.category]
+        );
+      }
+    }
+    
+    connection.release();
+    console.log('Database initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('Database initialization error:', error);
+    toast.error('Failed to initialize database');
+    
+    // Fallback to localStorage if MySQL connection fails
+    console.log('Falling back to localStorage for development');
+    initializeLocalStorage();
+    return false;
+  }
+};
+
+// Fallback to localStorage for development
 const DB_KEY = 'cozy_connections_db';
-
-interface DatabaseSchema {
-  users: any[];
-  questions: any[];
-  user_answers: any[];
-  matches: any[];
-  messages: any[];
-  events: any[];
-  event_invitations: any[];
-}
-
-// Initialize empty database
-const emptyDatabase: DatabaseSchema = {
+const emptyDatabase = {
   users: [],
   questions: [],
   user_answers: [],
@@ -25,31 +155,10 @@ const emptyDatabase: DatabaseSchema = {
   event_invitations: []
 };
 
-// Get database from localStorage
-const getDatabase = (): DatabaseSchema => {
+const initializeLocalStorage = () => {
   try {
     const dbString = localStorage.getItem(DB_KEY);
-    return dbString ? JSON.parse(dbString) : { ...emptyDatabase };
-  } catch (error) {
-    console.error('Error loading database from localStorage:', error);
-    return { ...emptyDatabase };
-  }
-};
-
-// Save database to localStorage
-const saveDatabase = (db: DatabaseSchema): void => {
-  try {
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-  } catch (error) {
-    console.error('Error saving database to localStorage:', error);
-    toast.error('Failed to save data');
-  }
-};
-
-// Initialize the database and create necessary data
-export const initializeDatabase = async (): Promise<boolean> => {
-  try {
-    const db = getDatabase();
+    const db = dbString ? JSON.parse(dbString) : { ...emptyDatabase };
     
     // Initialize with default questions if they don't exist
     if (db.questions.length === 0) {
@@ -67,23 +176,37 @@ export const initializeDatabase = async (): Promise<boolean> => {
       ];
     }
     
-    saveDatabase(db);
-    console.log('Database initialized successfully');
-    return true;
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
   } catch (error) {
-    console.error('Database initialization error:', error);
-    toast.error('Failed to initialize database');
-    return false;
+    console.error('LocalStorage initialization error:', error);
   }
 };
 
-// Simulate MySQL query
+// Execute a query against MySQL database
 export const query = async (sql: string, params: any[] = []): Promise<any> => {
   try {
     console.log('Query:', sql);
     console.log('Params:', params);
     
-    const db = getDatabase();
+    try {
+      // Try to use MySQL
+      const [rows] = await pool.execute(sql, params);
+      return rows;
+    } catch (dbError) {
+      console.error('MySQL query error, falling back to localStorage:', dbError);
+      return queryLocalStorage(sql, params);
+    }
+  } catch (error) {
+    console.error('Query error:', error);
+    throw error;
+  }
+};
+
+// Fallback to localStorage for queries
+const queryLocalStorage = (sql: string, params: any[] = []): any => {
+  try {
+    const dbString = localStorage.getItem(DB_KEY);
+    const db = dbString ? JSON.parse(dbString) : { ...emptyDatabase };
     
     // Parse the SQL query (very simplified)
     if (sql.includes('SELECT * FROM questions')) {

@@ -1,79 +1,63 @@
-
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker, DropdownProps } from "react-day-picker"
+import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
-function CustomCaption(props: {
-  displayMonth: Date;
-  onChange?: (date: Date) => void;
-}) {
-  const { displayMonth, onChange } = props;
-  
-  // Get the year and month from the displayMonth
-  const year = displayMonth.getFullYear();
-  const month = displayMonth.getMonth();
-  
-  // Available months
+interface CustomCaptionProps {
+  displayMonth?: Date
+  onChange: (date: Date) => void
+}
+
+function CustomCaption({ displayMonth, onChange }: CustomCaptionProps) {
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June', 
-    'July', 'August', 'September', 'October', 'November', 'December'
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
   ];
-  
-  // Generate array of years (e.g., from 1950 to current year)
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 1949 }, (_, i) => currentYear - i);
-  
-  // Handle year change
-  const handleYearChange = (year: string) => {
-    if (onChange) {
-      const newDate = new Date(displayMonth);
-      newDate.setFullYear(parseInt(year));
-      onChange(newDate);
-    }
+
+  const currentMonthIndex = displayMonth ? displayMonth.getMonth() : 0;
+  const currentYear = displayMonth ? displayMonth.getFullYear() : new Date().getFullYear();
+
+  const handleMonthChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const monthIndex = parseInt(event.target.value);
+    const newDate = new Date(currentYear, monthIndex, 1);
+    onChange(newDate);
   };
-  
-  // Handle month change
-  const handleMonthChange = (month: string) => {
-    if (onChange) {
-      const newDate = new Date(displayMonth);
-      newDate.setMonth(months.indexOf(month));
-      onChange(newDate);
-    }
+
+  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const year = parseInt(event.target.value);
+    const newDate = new Date(year, currentMonthIndex, 1);
+    onChange(newDate);
   };
-  
+
   return (
-    <div className="flex justify-center items-center gap-1">
-      <Select value={months[month]} onValueChange={handleMonthChange}>
-        <SelectTrigger className="w-[130px] h-8 text-sm">
-          <SelectValue placeholder={months[month]} />
-        </SelectTrigger>
-        <SelectContent>
-          {months.map((month) => (
-            <SelectItem key={month} value={month}>
-              {month}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      
-      <Select value={year.toString()} onValueChange={handleYearChange}>
-        <SelectTrigger className="w-[80px] h-8 text-sm">
-          <SelectValue placeholder={year.toString()} />
-        </SelectTrigger>
-        <SelectContent>
-          {years.map((year) => (
-            <SelectItem key={year} value={year.toString()}>
-              {year}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="flex justify-between items-center">
+      <select
+        className="bg-transparent border-none text-lg font-semibold pr-2"
+        value={currentMonthIndex}
+        onChange={handleMonthChange}
+      >
+        {months.map((month, index) => (
+          <option key={index} value={index}>
+            {month}
+          </option>
+        ))}
+      </select>
+      <select
+        className="bg-transparent border-none text-lg font-semibold"
+        value={currentYear}
+        onChange={handleYearChange}
+      >
+        {Array.from({ length: 101 }, (_, i) => currentYear - 50 + i).map((year) => (
+          <option key={year} value={year}>
+            {year}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -87,12 +71,12 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3 pointer-events-auto", className)}
+      className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "hidden", // Hide the default caption label
+        caption_label: "text-sm font-medium",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -125,12 +109,17 @@ function Calendar({
       components={{
         IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
-        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => props.displayMonth && date ? props.onMonthSelect?.(date.getMonth(), date.getFullYear()) : undefined} />,
+        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => {
+          if (props.displayMonth && date) {
+            props.onMonthChange?.(date);
+          }
+        }} />,
       }}
       {...props}
     />
-  )
+  );
 }
+
 Calendar.displayName = "Calendar"
 
 export { Calendar }

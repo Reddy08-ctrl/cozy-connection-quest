@@ -1,6 +1,7 @@
 
 import { query } from './database';
 import { getUserProfile } from './userService';
+import { generateChatSuggestions } from './aiService';
 
 export interface Message {
   id: number;
@@ -122,7 +123,7 @@ export const getUnreadCount = async (userId: number): Promise<number> => {
   }
 };
 
-// Get chat messages with AI suggestions
+// Get AI-powered chat suggestions
 export const getAiSuggestions = async (userId: number, otherUserId: number): Promise<string[]> => {
   try {
     // Get profile information for both users
@@ -130,7 +131,7 @@ export const getAiSuggestions = async (userId: number, otherUserId: number): Pro
     const otherUserProfile = await getUserProfile(otherUserId);
     
     // Get chat history (last 10 messages)
-    const chatHistory = await query(
+    const messages = await query(
       `SELECT * FROM messages 
        WHERE (sender_id = ? AND receiver_id = ?)
           OR (sender_id = ? AND receiver_id = ?)
@@ -139,22 +140,16 @@ export const getAiSuggestions = async (userId: number, otherUserId: number): Pro
       [userId, otherUserId, otherUserId, userId]
     );
     
-    // Simple rule-based suggestion system
-    // In a real app, this would be replaced with a proper AI model
-    const suggestions = [
-      `Hey, I noticed you're from ${otherUserProfile.location}. What's it like living there?`,
-      `I see you're interested in exploring new places. Have you visited any interesting spots lately?`,
-      `What kind of activities do you enjoy on weekends?`,
-      `Would you like to share more about your favorite hobbies?`,
-      `If you could travel anywhere right now, where would you go?`
-    ];
+    const chatHistory = messages.map(m => ({
+      content: m.content,
+      senderId: m.sender_id
+    }));
     
-    // Add more personalized suggestions based on user profiles
-    if (otherUserProfile.bio) {
-      suggestions.push(`I enjoyed reading your bio. Could you tell me more about your ${otherUserProfile.bio.includes('travel') ? 'travel experiences' : 'interests'}?`);
-    }
+    // Use AI service to generate suggestions
+    const suggestions = generateChatSuggestions(userProfile, otherUserProfile, chatHistory);
     
-    return suggestions;
+    // Return just the text of the suggestions
+    return suggestions.map(s => s.text);
   } catch (error) {
     console.error('Error getting AI suggestions:', error);
     return [
