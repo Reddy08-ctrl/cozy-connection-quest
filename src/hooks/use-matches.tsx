@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { findMatches, updateMatchStatus, Match } from '@/services/matchService';
+import { getUserMatches, updateMatchStatus, Match } from '@/services/matchService';
 import { useAuth } from './use-auth';
 import { toast } from 'sonner';
 
@@ -17,7 +17,7 @@ export const useMatches = () => {
       
       setIsLoading(true);
       try {
-        const fetchedMatches = await findMatches(user.id);
+        const fetchedMatches = await getUserMatches(user.id);
         setMatches(fetchedMatches);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch matches';
