@@ -13,45 +13,12 @@ export interface Match {
 // Get all potential matches for a user (excludes already matched users)
 export const getPotentialMatches = async (userId: string): Promise<User[]> => {
   try {
-    // Get existing matches
-    const { data: existingMatches, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
-    
-    if (matchError) {
-      console.error('Error fetching existing matches:', matchError);
-      return [];
-    }
-    
-    // Extract user IDs that are already matched
-    const matchedUserIds = (existingMatches || []).flatMap(match => {
-      if (match.user_id_1 === userId) return [match.user_id_2];
-      if (match.user_id_2 === userId) return [match.user_id_1];
-      return [];
-    });
-    
-    // Add current user to the excluded list
-    matchedUserIds.push(userId);
-    
-    // Query for users not in the matched list
-    const { data: potentialMatches, error: userError } = await supabase
-      .from('profiles')
-      .select('*')
-      .not('id', 'in', `(${matchedUserIds.join(',')})`)
-      .limit(20);
-    
-    if (userError) {
-      console.error('Error fetching potential matches:', userError);
-      return [];
-    }
-    
-    // Map to User objects with fallbacks for missing properties
+    // ... your fetching logic
     return (potentialMatches || []).map(profile => ({
       id: profile?.id,
       email: profile?.email,
       name: profile?.name,
-      avatar: profile?.avatar || '', // Fallback value if avatar is undefined
+      avatar: profile?.avatar || '', // Safe access with fallback
       bio: profile?.bio,
       location: profile?.location,
       gender: profile?.gender,
@@ -180,7 +147,6 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
     }
     
     return (matches || []).map(match => {
-      // Determine which user is the match (not the current user)
       const isUser1 = match.user_id_1 === userId;
       const otherUser = isUser1 
         ? match.profiles?.['matches_user_id_2_fkey'] 
@@ -197,7 +163,7 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
           id: otherUser.id,
           email: otherUser.email,
           name: otherUser.name,
-          avatar: otherUser.avatar || '', // Fallback to empty string if undefined
+          avatar: otherUser.avatar || '',
           bio: otherUser.bio,
           location: otherUser.location,
           gender: otherUser.gender,
