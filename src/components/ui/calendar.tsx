@@ -87,7 +87,7 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3", className)}
+      className={cn("p-3 pointer-events-auto", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
@@ -125,7 +125,7 @@ function Calendar({
       components={{
         IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
-        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={props.goToMonth} />,
+        Caption: (props) => <CustomCaption displayMonth={props.displayMonth} onChange={(date) => props.onMonthChange?.(date)} />,
       }}
       {...props}
     />

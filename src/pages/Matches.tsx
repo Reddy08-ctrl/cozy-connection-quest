@@ -103,12 +103,12 @@ const Matches = () => {
                         >
                           <MatchCard 
                             match={{
-                              id: match.id,
+                              id: match.id.toString(),
                               name: match.matchedUser.name,
                               age: match.matchedUser.age || 25,
                               location: match.matchedUser.location || "Unknown",
                               bio: match.matchedUser.bio || "No bio provided",
-                              image: match.matchedUser.avatar || "/placeholder.svg",
+                              avatar: match.matchedUser.avatar || "/placeholder.svg",
                               compatibility: Math.round(match.matchScore * 100),
                               interests: ["AI Dating", "Technology"]
                             }}
