@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft } from 'lucide-react';
@@ -125,7 +126,11 @@ const Chat = () => {
             </div>
           ) : (
             <ChatInterface
-              messageList={messages}
+              match={{
+                id: otherUser?.id || '',
+                name: otherUser?.name || '',
+                avatar: otherUser?.avatar || ''
+              }}
               currentUserId={user?.id || ""}
             />
           )}

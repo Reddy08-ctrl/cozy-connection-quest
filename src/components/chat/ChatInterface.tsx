@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send } from 'lucide-react';
+import { getMessages, sendMessage } from '@/services/chatService';
 
 interface Message {
   id: string;
@@ -13,7 +14,7 @@ interface Message {
   timestamp: Date;
 }
 
-interface ChatInterfaceProps {
+export interface ChatInterfaceProps {
   match: {
     id: string;
     name: string;
@@ -27,30 +28,53 @@ const ChatInterface = ({ match, currentUserId }: ChatInterfaceProps) => {
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Simulate loading initial messages
+  // Load messages on component mount
   useEffect(() => {
-    const initialMessages: Message[] = [
-      {
-        id: '1',
-        senderId: match.id,
-        text: "Hi there! I saw we matched and wanted to say hello.",
-        timestamp: new Date(Date.now() - 60000 * 30) // 30 minutes ago
-      },
-      {
-        id: '2',
-        senderId: currentUserId,
-        text: "Hey! Nice to meet you. How's your day going?",
-        timestamp: new Date(Date.now() - 60000 * 25) // 25 minutes ago
-      },
-      {
-        id: '3',
-        senderId: match.id,
-        text: "It's going well! I just finished work and now relaxing. What about you?",
-        timestamp: new Date(Date.now() - 60000 * 20) // 20 minutes ago
-      },
-    ];
+    const loadMessages = async () => {
+      try {
+        const fetchedMessages = await getMessages(currentUserId, match.id);
+        
+        // Convert to the format this component uses
+        const formattedMessages = fetchedMessages.map(msg => ({
+          id: msg.id.toString(),
+          senderId: msg.senderId,
+          text: msg.content,
+          timestamp: new Date(msg.createdAt)
+        }));
+        
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    };
     
-    setMessages(initialMessages);
+    if (currentUserId && match.id) {
+      loadMessages();
+    } else {
+      // For demo purposes, show some initial messages
+      const initialMessages: Message[] = [
+        {
+          id: '1',
+          senderId: match.id,
+          text: "Hi there! I saw we matched and wanted to say hello.",
+          timestamp: new Date(Date.now() - 60000 * 30) // 30 minutes ago
+        },
+        {
+          id: '2',
+          senderId: currentUserId,
+          text: "Hey! Nice to meet you. How's your day going?",
+          timestamp: new Date(Date.now() - 60000 * 25) // 25 minutes ago
+        },
+        {
+          id: '3',
+          senderId: match.id,
+          text: "It's going well! I just finished work and now relaxing. What about you?",
+          timestamp: new Date(Date.now() - 60000 * 20) // 20 minutes ago
+        },
+      ];
+      
+      setMessages(initialMessages);
+    }
   }, [match.id, currentUserId]);
 
   // Scroll to bottom when messages change
@@ -58,32 +82,54 @@ const ChatInterface = ({ match, currentUserId }: ChatInterfaceProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (newMessage.trim() === '') return;
     
-    const message: Message = {
+    const tempMessage: Message = {
       id: Date.now().toString(),
       senderId: currentUserId,
       text: newMessage,
       timestamp: new Date()
     };
     
-    setMessages([...messages, message]);
+    setMessages([...messages, tempMessage]);
     setNewMessage('');
     
-    // Simulate reply after a short delay
-    setTimeout(() => {
-      const reply: Message = {
-        id: (Date.now() + 1).toString(),
-        senderId: match.id,
-        text: "That's interesting! Tell me more about it.",
-        timestamp: new Date()
-      };
+    try {
+      const sentMessage = await sendMessage(currentUserId, match.id, newMessage);
       
-      setMessages(prev => [...prev, reply]);
-    }, 3000);
+      if (sentMessage) {
+        // Update the temporary message with the real one
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === tempMessage.id 
+              ? { 
+                  id: sentMessage.id.toString(), 
+                  senderId: sentMessage.senderId,
+                  text: sentMessage.content,
+                  timestamp: new Date(sentMessage.createdAt)
+                }
+              : msg
+          )
+        );
+      }
+      
+      // For demo purposes, simulate a reply after a short delay
+      setTimeout(() => {
+        const reply: Message = {
+          id: (Date.now() + 1).toString(),
+          senderId: match.id,
+          text: "That's interesting! Tell me more about it.",
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, reply]);
+      }, 3000);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   const formatTime = (date: Date) => {

@@ -9,7 +9,146 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      matches: {
+        Row: {
+          created_at: string
+          id: number
+          match_score: number
+          status: string
+          user_id_1: string
+          user_id_2: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          match_score: number
+          status?: string
+          user_id_1: string
+          user_id_2: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          match_score?: number
+          status?: string
+          user_id_1?: string
+          user_id_2?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: number
+          read: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: number
+          read?: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: number
+          read?: boolean
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          bio: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string
+          gender: string | null
+          id: string
+          location: string | null
+          name: string
+        }
+        Insert: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email: string
+          gender?: string | null
+          id: string
+          location?: string | null
+          name: string
+        }
+        Update: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string
+          gender?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+        }
+        Relationships: []
+      }
+      questions: {
+        Row: {
+          category: string
+          id: number
+          question: string
+        }
+        Insert: {
+          category: string
+          id?: number
+          question: string
+        }
+        Update: {
+          category?: string
+          id?: number
+          question?: string
+        }
+        Relationships: []
+      }
+      user_answers: {
+        Row: {
+          answer: string
+          created_at: string
+          id: number
+          question_id: number
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: number
+          question_id: number
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: number
+          question_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

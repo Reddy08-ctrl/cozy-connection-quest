@@ -1,59 +1,63 @@
 
-import { query } from './database';
-import { getUserProfile } from './userService';
+import { supabase } from '@/integrations/supabase/client';
+import { getUserProfile, User } from './userService';
 
 export interface Event {
-  id: number;
-  creatorId: number;
+  id: string;
+  creatorId: string;
+  creator?: User;
   title: string;
   description: string;
   location: string;
   eventDate: Date;
   createdAt: Date;
-  creatorName: string;
+  attendees?: User[];
 }
 
 export interface EventInvitation {
-  id: number;
-  eventId: number;
-  userId: number;
-  status: 'pending' | 'accepted' | 'rejected';
+  id: string;
+  eventId: string;
+  event?: Event;
+  userId: string;
+  user?: User;
+  status: 'pending' | 'accepted' | 'declined';
   createdAt: Date;
-  event: Event;
 }
 
 // Create a new event
 export const createEvent = async (
-  userId: number,
-  eventData: Omit<Event, 'id' | 'creatorId' | 'createdAt' | 'creatorName'>
+  creatorId: string,
+  title: string,
+  description: string,
+  location: string,
+  eventDate: Date
 ): Promise<Event | null> => {
   try {
-    const { title, description, location, eventDate } = eventData;
+    const { data, error } = await supabase
+      .from('events')
+      .insert({
+        creator_id: creatorId,
+        title,
+        description,
+        location,
+        event_date: eventDate.toISOString()
+      })
+      .select()
+      .single();
     
-    // Insert the new event
-    const result = await query(
-      `INSERT INTO events (creator_id, title, description, location, event_date) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, title, description, location, eventDate]
-    );
-    
-    if (!result || !result.insertId) {
-      throw new Error('Failed to create event');
+    if (error) {
+      console.error('Error creating event:', error);
+      return null;
     }
     
-    // Get the user to include the creator name
-    const userProfile = await getUserProfile(userId);
-    
-    // Return the created event
     return {
-      id: result.insertId,
-      creatorId: userId,
-      title,
-      description,
-      location,
-      eventDate,
-      createdAt: new Date(),
-      creatorName: userProfile?.name || 'Unknown'
+      id: data.id,
+      creatorId: data.creator_id,
+      title: data.title,
+      description: data.description,
+      location: data.location,
+      eventDate: new Date(data.event_date),
+      createdAt: new Date(data.created_at)
     };
   } catch (error) {
     console.error('Error creating event:', error);
@@ -62,30 +66,27 @@ export const createEvent = async (
 };
 
 // Get events created by a user
-export const getUserEvents = async (userId: number): Promise<Event[]> => {
+export const getUserEvents = async (userId: string): Promise<Event[]> => {
   try {
-    const events = await query(
-      `SELECT e.*, u.name as creator_name
-       FROM events e
-       JOIN users u ON e.creator_id = u.id
-       WHERE e.creator_id = ?
-       ORDER BY e.event_date DESC`,
-      [userId]
-    );
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('creator_id', userId)
+      .order('event_date', { ascending: true });
     
-    if (!Array.isArray(events)) {
+    if (error) {
+      console.error('Error fetching user events:', error);
       return [];
     }
     
-    return events.map(event => ({
+    return (data || []).map(event => ({
       id: event.id,
       creatorId: event.creator_id,
       title: event.title,
       description: event.description,
       location: event.location,
       eventDate: new Date(event.event_date),
-      createdAt: new Date(event.created_at),
-      creatorName: event.creator_name
+      createdAt: new Date(event.created_at)
     }));
   } catch (error) {
     console.error('Error getting user events:', error);
@@ -93,71 +94,56 @@ export const getUserEvents = async (userId: number): Promise<Event[]> => {
   }
 };
 
-// Get a single event by ID
-export const getEventById = async (eventId: number): Promise<Event | null> => {
+// Get events a user is invited to
+export const getInvitedEvents = async (userId: string): Promise<Event[]> => {
   try {
-    const events = await query(
-      `SELECT e.*, u.name as creator_name
-       FROM events e
-       JOIN users u ON e.creator_id = u.id
-       WHERE e.id = ?`,
-      [eventId]
-    );
+    const { data, error } = await supabase
+      .from('event_invitations')
+      .select(`
+        *,
+        events(*)
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'accepted');
     
-    if (!Array.isArray(events) || events.length === 0) {
-      return null;
+    if (error) {
+      console.error('Error fetching invited events:', error);
+      return [];
     }
     
-    const event = events[0];
-    
-    return {
-      id: event.id,
-      creatorId: event.creator_id,
-      title: event.title,
-      description: event.description,
-      location: event.location,
-      eventDate: new Date(event.event_date),
-      createdAt: new Date(event.created_at),
-      creatorName: event.creator_name
-    };
+    return (data || []).map(invitation => {
+      const event = invitation.events;
+      return {
+        id: event.id,
+        creatorId: event.creator_id,
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        eventDate: new Date(event.event_date),
+        createdAt: new Date(event.created_at)
+      };
+    });
   } catch (error) {
-    console.error('Error getting event:', error);
-    return null;
+    console.error('Error getting invited events:', error);
+    return [];
   }
 };
 
 // Invite a user to an event
-export const inviteUserToEvent = async (
-  eventId: number,
-  creatorId: number,
-  invitedUserId: number
-): Promise<boolean> => {
+export const inviteUserToEvent = async (eventId: string, userId: string): Promise<boolean> => {
   try {
-    // Verify the event exists and the creator is correct
-    const events = await query(
-      'SELECT * FROM events WHERE id = ? AND creator_id = ?',
-      [eventId, creatorId]
-    );
+    const { error } = await supabase
+      .from('event_invitations')
+      .insert({
+        event_id: eventId,
+        user_id: userId,
+        status: 'pending'
+      });
     
-    if (!Array.isArray(events) || events.length === 0) {
-      throw new Error('Event not found or you are not the creator');
+    if (error) {
+      console.error('Error inviting user to event:', error);
+      return false;
     }
-    
-    // Check if an invitation already exists
-    const existingInvitations = await query(
-      'SELECT * FROM event_invitations WHERE event_id = ? AND user_id = ?',
-      [eventId, invitedUserId]
-    );
-    
-    if (Array.isArray(existingInvitations) && existingInvitations.length > 0) {
-      throw new Error('User has already been invited to this event');
-    }
-    
-    // Create the invitation
-    await query(
-      'INSERT INTO event_invitations (event_id, user_id, status) VALUES (?, ?, ?)',
-      [eventId, invitedUserId, 'pending']
-    );
     
     return true;
   } catch (error) {
@@ -166,72 +152,68 @@ export const inviteUserToEvent = async (
   }
 };
 
-// Update invitation status
-export const updateInvitationStatus = async (
-  invitationId: number,
-  userId: number,
-  status: 'accepted' | 'rejected'
+// Respond to an event invitation
+export const respondToInvitation = async (
+  invitationId: string,
+  status: 'accepted' | 'declined'
 ): Promise<boolean> => {
   try {
-    // Verify the invitation exists and belongs to the user
-    const invitations = await query(
-      'SELECT * FROM event_invitations WHERE id = ? AND user_id = ?',
-      [invitationId, userId]
-    );
+    const { error } = await supabase
+      .from('event_invitations')
+      .update({ status })
+      .eq('id', invitationId);
     
-    if (!Array.isArray(invitations) || invitations.length === 0) {
-      throw new Error('Invitation not found or does not belong to you');
+    if (error) {
+      console.error('Error responding to invitation:', error);
+      return false;
     }
-    
-    // Update the status
-    await query(
-      'UPDATE event_invitations SET status = ? WHERE id = ?',
-      [status, invitationId]
-    );
     
     return true;
   } catch (error) {
-    console.error('Error updating invitation status:', error);
+    console.error('Error responding to invitation:', error);
     return false;
   }
 };
 
-// Get user's event invitations
-export const getUserInvitations = async (userId: number): Promise<EventInvitation[]> => {
+// Get pending invitations for a user
+export const getPendingInvitations = async (userId: string): Promise<EventInvitation[]> => {
   try {
-    const invitations = await query(
-      `SELECT i.*, e.*, u.name as creator_name
-       FROM event_invitations i
-       JOIN events e ON i.event_id = e.id
-       JOIN users u ON e.creator_id = u.id
-       WHERE i.user_id = ?
-       ORDER BY i.created_at DESC`,
-      [userId]
-    );
+    const { data, error } = await supabase
+      .from('event_invitations')
+      .select(`
+        *,
+        events(*),
+        profiles!event_invitations_user_id_fkey(*)
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'pending');
     
-    if (!Array.isArray(invitations)) {
+    if (error) {
+      console.error('Error fetching pending invitations:', error);
       return [];
     }
     
-    return invitations.map(invitation => ({
-      id: invitation.id,
-      eventId: invitation.event_id,
-      userId: invitation.user_id,
-      status: invitation.status,
-      createdAt: new Date(invitation.created_at),
-      event: {
-        id: invitation.event_id,
-        creatorId: invitation.creator_id,
-        title: invitation.title,
-        description: invitation.description,
-        location: invitation.location,
-        eventDate: new Date(invitation.event_date),
+    return (data || []).map(invitation => {
+      const event = invitation.events;
+      return {
+        id: invitation.id,
+        eventId: invitation.event_id,
+        userId: invitation.user_id,
+        status: invitation.status,
         createdAt: new Date(invitation.created_at),
-        creatorName: invitation.creator_name
-      }
-    }));
+        event: {
+          id: event.id,
+          creatorId: event.creator_id,
+          title: event.title,
+          description: event.description,
+          location: event.location,
+          eventDate: new Date(event.event_date),
+          createdAt: new Date(event.created_at)
+        }
+      };
+    });
   } catch (error) {
-    console.error('Error getting user invitations:', error);
+    console.error('Error getting pending invitations:', error);
     return [];
   }
 };

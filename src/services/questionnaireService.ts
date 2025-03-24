@@ -8,7 +8,7 @@ export interface Question {
 }
 
 export interface UserAnswer {
-  userId: string; // Changed from number to string
+  userId: string;
   questionId: number;
   answer: string;
 }

@@ -1,189 +1,226 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, ArrowUpDown, Heart, X, MessageCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MatchCard } from '@/components/matches/MatchCard';
 import Layout from '@/components/layout/Layout';
 import PageTransition from '@/components/ui/PageTransition';
-import MatchCard from '@/components/matches/MatchCard';
 import { useMatches } from '@/hooks/use-matches';
-import { useNavigate } from 'react-router-dom';
+import { Match } from '@/services/matchService';
+import { differenceInYears } from 'date-fns';
 
-const calculateAge = (dateOfBirth?: Date): number => {
-  if (!dateOfBirth) return 0;
-  
-  const today = new Date();
-  let age = today.getFullYear() - dateOfBirth.getFullYear();
-  const monthDiff = today.getMonth() - dateOfBirth.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
-    age--;
-  }
-  
-  return age;
-};
-
-const MatchesPage = () => {
+const Matches = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { 
     matches, 
-    isLoading, 
-    error, 
-    activeTab, 
-    setActiveTab,
-    acceptMatch,
+    favoriteMatches, 
+    loadingMatches, 
+    addToFavorites, 
+    removeFromFavorites, 
+    acceptMatch, 
     rejectMatch 
   } = useMatches();
   
-  const handleAccept = async (matchId: number) => {
-    await acceptMatch(matchId);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'score' | 'date' | 'name'>('score');
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  const calculateAge = (dateOfBirth: Date | undefined | null) => {
+    if (!dateOfBirth) return null;
+    return differenceInYears(new Date(), new Date(dateOfBirth));
   };
   
-  const handleReject = async (matchId: number) => {
-    await rejectMatch(matchId);
+  const filteredMatches = (showFavorites ? favoriteMatches : matches)
+    .filter(match => 
+      match.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      match.user.location?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'score':
+          return b.matchScore - a.matchScore;
+        case 'date':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'name':
+          return a.user.name.localeCompare(b.user.name);
+        default:
+          return 0;
+      }
+    });
+  
+  const handleAddToFavorites = async (matchId: number) => {
+    try {
+      await addToFavorites(matchId);
+      return true;
+    } catch (error) {
+      console.error('Error adding to favorites:', error);
+      toast({
+        title: 'Failed to add to favorites',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      });
+      return false;
+    }
   };
   
-  const handleViewProfile = (userId: string) => {
-    // In a real app, this would navigate to a profile view page
-    console.log('Viewing profile:', userId);
+  const handleRemoveFromFavorites = async (matchId: number) => {
+    try {
+      await removeFromFavorites(matchId);
+      return true;
+    } catch (error) {
+      console.error('Error removing from favorites:', error);
+      toast({
+        title: 'Failed to remove from favorites',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      });
+      return false;
+    }
+  };
+  
+  const handleAcceptMatch = async (matchId: number) => {
+    try {
+      const success = await acceptMatch(matchId);
+      if (success) {
+        toast({
+          title: 'Match accepted!',
+          description: 'You can now chat with this person.'
+        });
+      }
+      return success;
+    } catch (error) {
+      console.error('Error accepting match:', error);
+      toast({
+        title: 'Failed to accept match',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      });
+      return false;
+    }
+  };
+  
+  const handleRejectMatch = async (matchId: number) => {
+    try {
+      const success = await rejectMatch(matchId);
+      if (success) {
+        toast({
+          title: 'Match rejected',
+          description: 'The match has been declined.'
+        });
+      }
+      return success;
+    } catch (error) {
+      console.error('Error rejecting match:', error);
+      toast({
+        title: 'Failed to reject match',
+        description: 'Please try again later.',
+        variant: 'destructive'
+      });
+      return false;
+    }
   };
   
   const handleMessage = (userId: string) => {
     navigate(`/chat/${userId}`);
   };
   
+  const handleViewProfile = (userId: string) => {
+    navigate(`/profile/${userId}`);
+  };
+  
   return (
     <Layout>
       <PageTransition>
-        <div className="min-h-[calc(100vh-4rem)] py-8 px-4">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 z-[-1]" />
-          
-          <div className="max-w-screen-xl mx-auto">
-            <div className="mb-8 text-center">
-              <motion.h1 
-                className="text-3xl md:text-4xl font-serif font-semibold"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                Your Matches
-              </motion.h1>
-              <motion.p 
-                className="text-muted-foreground mt-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                Connect with people who share your interests and values
-              </motion.p>
+        <div className="container max-w-6xl mx-auto p-4 sm:p-6">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <h1 className="text-3xl font-serif">Your Matches</h1>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input 
+                    placeholder="Search matches..." 
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Select 
+                    value={sortBy} 
+                    onValueChange={(value) => setSortBy(value as 'score' | 'date' | 'name')}
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="score">Match Score</SelectItem>
+                      <SelectItem value="date">Most Recent</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant={showFavorites ? "default" : "outline"} 
+                    onClick={() => setShowFavorites(!showFavorites)}
+                  >
+                    <Heart className="mr-2 h-4 w-4" />
+                    Favorites
+                  </Button>
+                </div>
+              </div>
             </div>
             
-            <Tabs 
-              defaultValue="recommended" 
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value as 'recommended' | 'new' | 'favorites')}
-              className="w-full"
-            >
-              <TabsList className="grid grid-cols-3 mb-8">
-                <TabsTrigger value="recommended">Recommended</TabsTrigger>
-                <TabsTrigger value="new">New Matches</TabsTrigger>
-                <TabsTrigger value="favorites">Favorites</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="recommended" className="space-y-6">
-                {isLoading ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                  </div>
-                ) : matches.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {matches.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        name={match.matchedUser.name}
-                        age={calculateAge(match.matchedUser.dateOfBirth)}
-                        location={match.matchedUser.location || 'Unknown location'}
-                        bio={match.matchedUser.bio || 'No bio provided'}
-                        avatar={match.matchedUser.avatar}
-                        matchScore={match.matchScore}
-                        onAccept={() => handleAccept(match.id)}
-                        onReject={() => handleReject(match.id)}
-                        onViewProfile={() => handleViewProfile(match.matchedUser.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">No recommended matches found</p>
-                    <Button 
-                      variant="outline" 
-                      className="mt-4"
-                      onClick={() => navigate('/questionnaire')}
-                    >
-                      Complete your questionnaire to get matches
-                    </Button>
-                  </div>
+            {loadingMatches ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="animate-pulse bg-muted rounded-lg h-72"></div>
+                ))}
+              </div>
+            ) : filteredMatches.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredMatches.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    user={match.user}
+                    matchScore={match.matchScore}
+                    status={match.status}
+                    isFavorite={favoriteMatches.some(f => f.id === match.id)}
+                    onAccept={() => handleAcceptMatch(match.id)}
+                    onReject={() => handleRejectMatch(match.id)}
+                    onAddToFavorites={() => handleAddToFavorites(match.id)}
+                    onRemoveFromFavorites={() => handleRemoveFromFavorites(match.id)}
+                    onMessage={() => handleMessage(match.user.id)}
+                    onViewProfile={() => handleViewProfile(match.user.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="bg-muted rounded-full p-6">
+                  <Heart className="h-12 w-12 text-muted-foreground" />
+                </div>
+                <h2 className="text-2xl font-medium">No matches found</h2>
+                <p className="text-muted-foreground text-center max-w-md">
+                  {showFavorites ? 
+                    "You haven't added any matches to your favorites yet." : 
+                    "Complete your profile and answer more questions to get better matches."}
+                </p>
+                {showFavorites && (
+                  <Button 
+                    onClick={() => setShowFavorites(false)}
+                    className="mt-2"
+                  >
+                    View All Matches
+                  </Button>
                 )}
-              </TabsContent>
-              
-              <TabsContent value="new" className="space-y-6">
-                {isLoading ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                  </div>
-                ) : matches.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {matches.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        name={match.matchedUser.name}
-                        age={calculateAge(match.matchedUser.dateOfBirth)}
-                        location={match.matchedUser.location || 'Unknown location'}
-                        bio={match.matchedUser.bio || 'No bio provided'}
-                        avatar={match.matchedUser.avatar}
-                        matchScore={match.matchScore}
-                        onAccept={() => handleAccept(match.id)}
-                        onReject={() => handleReject(match.id)}
-                        onViewProfile={() => handleViewProfile(match.matchedUser.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">No new matches found</p>
-                  </div>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="favorites" className="space-y-6">
-                {isLoading ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                  </div>
-                ) : matches.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {matches.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        name={match.matchedUser.name}
-                        age={calculateAge(match.matchedUser.dateOfBirth)}
-                        location={match.matchedUser.location || 'Unknown location'}
-                        bio={match.matchedUser.bio || 'No bio provided'}
-                        avatar={match.matchedUser.avatar}
-                        matchScore={match.matchScore}
-                        isFavorite={true}
-                        onMessage={() => handleMessage(match.matchedUser.id)}
-                        onViewProfile={() => handleViewProfile(match.matchedUser.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">No favorites yet</p>
-                    <p className="text-sm mt-2">Accept matches to add them to your favorites</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+              </div>
+            )}
           </div>
         </div>
       </PageTransition>
@@ -191,4 +228,4 @@ const MatchesPage = () => {
   );
 };
 
-export default MatchesPage;
+export default Matches;
