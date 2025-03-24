@@ -1,192 +1,350 @@
 
-import mysql from 'mysql2/promise';
 import { toast } from 'sonner';
 
-// Database connection configuration
-const dbConfig = {
-  host: 'localhost',
-  user: 'root',
-  password: 'Vtu@20253',
-  database: 'cozy_connections'
+// Database tables structure in localStorage
+const DB_KEY = 'cozy_connections_db';
+
+interface DatabaseSchema {
+  users: any[];
+  questions: any[];
+  user_answers: any[];
+  matches: any[];
+  messages: any[];
+  events: any[];
+  event_invitations: any[];
+}
+
+// Initialize empty database
+const emptyDatabase: DatabaseSchema = {
+  users: [],
+  questions: [],
+  user_answers: [],
+  matches: [],
+  messages: [],
+  events: [],
+  event_invitations: []
 };
 
-// Database connection pool
-let pool: mysql.Pool | null = null;
-
-// Initialize the database and create necessary tables
-export const initializeDatabase = async () => {
+// Get database from localStorage
+const getDatabase = (): DatabaseSchema => {
   try {
-    // Create a connection to MySQL server without database specified
-    const initialConnection = await mysql.createConnection({
-      host: dbConfig.host,
-      user: dbConfig.user,
-      password: dbConfig.password
-    });
+    const dbString = localStorage.getItem(DB_KEY);
+    return dbString ? JSON.parse(dbString) : { ...emptyDatabase };
+  } catch (error) {
+    console.error('Error loading database from localStorage:', error);
+    return { ...emptyDatabase };
+  }
+};
 
-    // Create database if it doesn't exist
-    await initialConnection.query(`CREATE DATABASE IF NOT EXISTS ${dbConfig.database}`);
+// Save database to localStorage
+const saveDatabase = (db: DatabaseSchema): void => {
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+  } catch (error) {
+    console.error('Error saving database to localStorage:', error);
+    toast.error('Failed to save data');
+  }
+};
+
+// Initialize the database and create necessary data
+export const initializeDatabase = async (): Promise<boolean> => {
+  try {
+    const db = getDatabase();
     
-    // Close initial connection
-    await initialConnection.end();
+    // Initialize with default questions if they don't exist
+    if (db.questions.length === 0) {
+      db.questions = [
+        { id: 1, question: 'What are your top three hobbies?', category: 'interests' },
+        { id: 2, question: 'How do you prefer to spend your weekends?', category: 'lifestyle' },
+        { id: 3, question: 'What is your ideal vacation destination?', category: 'travel' },
+        { id: 4, question: 'Describe your perfect date.', category: 'relationships' },
+        { id: 5, question: 'What values are most important to you in a relationship?', category: 'values' },
+        { id: 6, question: 'Do you prefer outdoor or indoor activities?', category: 'lifestyle' },
+        { id: 7, question: 'Are you a morning person or a night owl?', category: 'personality' },
+        { id: 8, question: 'What type of books/movies/TV shows do you enjoy?', category: 'entertainment' },
+        { id: 9, question: 'Do you have any pets or would you like to have pets?', category: 'lifestyle' },
+        { id: 10, question: 'What are your career goals?', category: 'goals' }
+      ];
+    }
     
-    // Create a connection pool with the database specified
-    pool = mysql.createPool({
-      ...dbConfig,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
-    
-    // Create tables if they don't exist
-    await createTables();
-    
+    saveDatabase(db);
     console.log('Database initialized successfully');
     return true;
   } catch (error) {
     console.error('Database initialization error:', error);
-    toast.error('Failed to connect to database');
+    toast.error('Failed to initialize database');
     return false;
   }
 };
 
-// Create necessary tables
-const createTables = async () => {
-  if (!pool) throw new Error('Database not initialized');
-  
-  // Users table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) NOT NULL UNIQUE,
-      password VARCHAR(255) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      avatar TEXT,
-      bio TEXT,
-      location VARCHAR(255),
-      gender VARCHAR(50),
-      date_of_birth DATE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // Questions table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS questions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      question TEXT NOT NULL,
-      category VARCHAR(50),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  // User answers table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS user_answers (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      question_id INT NOT NULL,
-      answer TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Matches table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS matches (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id_1 INT NOT NULL,
-      user_id_2 INT NOT NULL,
-      match_score FLOAT NOT NULL,
-      status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id_1) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id_2) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Messages table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      sender_id INT NOT NULL,
-      receiver_id INT NOT NULL,
-      content TEXT NOT NULL,
-      read BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Events table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS events (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      creator_id INT NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      description TEXT,
-      location VARCHAR(255),
-      event_date DATETIME NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Event invitations table
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS event_invitations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      event_id INT NOT NULL,
-      user_id INT NOT NULL,
-      status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Insert default questions if they don't exist
-  const [existingQuestions] = await pool.query('SELECT COUNT(*) as count FROM questions');
-  
-  if (existingQuestions[0].count === 0) {
-    const defaultQuestions = [
-      { question: 'What are your top three hobbies?', category: 'interests' },
-      { question: 'How do you prefer to spend your weekends?', category: 'lifestyle' },
-      { question: 'What is your ideal vacation destination?', category: 'travel' },
-      { question: 'Describe your perfect date.', category: 'relationships' },
-      { question: 'What values are most important to you in a relationship?', category: 'values' },
-      { question: 'Do you prefer outdoor or indoor activities?', category: 'lifestyle' },
-      { question: 'Are you a morning person or a night owl?', category: 'personality' },
-      { question: 'What type of books/movies/TV shows do you enjoy?', category: 'entertainment' },
-      { question: 'Do you have any pets or would you like to have pets?', category: 'lifestyle' },
-      { question: 'What are your career goals?', category: 'goals' }
-    ];
-    
-    for (const q of defaultQuestions) {
-      await pool.query('INSERT INTO questions (question, category) VALUES (?, ?)', 
-                      [q.question, q.category]);
-    }
-  }
-};
-
-// Get a database connection
-export const getConnection = async () => {
-  if (!pool) {
-    await initializeDatabase();
-  }
-  return pool!;
-};
-
-// Execute a query
-export const query = async (sql: string, params: any[] = []) => {
-  const connection = await getConnection();
+// Simulate MySQL query
+export const query = async (sql: string, params: any[] = []): Promise<any> => {
   try {
-    const [results] = await connection.query(sql, params);
-    return results;
+    console.log('Query:', sql);
+    console.log('Params:', params);
+    
+    const db = getDatabase();
+    
+    // Parse the SQL query (very simplified)
+    if (sql.includes('SELECT * FROM questions')) {
+      return db.questions;
+    }
+    
+    if (sql.includes('SELECT * FROM user_answers WHERE user_id = ?')) {
+      return db.user_answers.filter(a => a.user_id === params[0]);
+    }
+    
+    if (sql.includes('SELECT * FROM user_answers WHERE user_id = ? AND question_id = ?')) {
+      return db.user_answers.filter(a => a.user_id === params[0] && a.question_id === params[1]);
+    }
+    
+    if (sql.includes('UPDATE user_answers SET answer = ?')) {
+      const userId = params[1];
+      const questionId = params[2];
+      const newAnswer = params[0];
+      
+      const index = db.user_answers.findIndex(
+        a => a.user_id === userId && a.question_id === questionId
+      );
+      
+      if (index !== -1) {
+        db.user_answers[index].answer = newAnswer;
+        saveDatabase(db);
+      }
+      
+      return { affectedRows: 1 };
+    }
+    
+    if (sql.includes('INSERT INTO user_answers')) {
+      const newId = db.user_answers.length ? Math.max(...db.user_answers.map(a => a.id)) + 1 : 1;
+      const newAnswer = {
+        id: newId,
+        user_id: params[0],
+        question_id: params[1],
+        answer: params[2],
+        created_at: new Date().toISOString()
+      };
+      
+      db.user_answers.push(newAnswer);
+      saveDatabase(db);
+      
+      return { insertId: newId };
+    }
+    
+    if (sql.includes('SELECT * FROM users WHERE email = ?')) {
+      const users = db.users.filter(u => u.email === params[0]);
+      return users;
+    }
+    
+    if (sql.includes('INSERT INTO users')) {
+      const newId = db.users.length ? Math.max(...db.users.map(u => u.id)) + 1 : 1;
+      const newUser = {
+        id: newId,
+        email: params[0],
+        password: params[1],
+        name: params[2],
+        created_at: new Date().toISOString()
+      };
+      
+      db.users.push(newUser);
+      saveDatabase(db);
+      
+      return { insertId: newId };
+    }
+    
+    if (sql.includes('SELECT id, email, name FROM users WHERE id = ?')) {
+      const user = db.users.find(u => u.id === params[0]);
+      return user ? [user] : [];
+    }
+    
+    if (sql.includes('SELECT * FROM users WHERE id = ?')) {
+      const users = db.users.filter(u => u.id === params[0]);
+      return users;
+    }
+    
+    if (sql.includes('UPDATE users SET')) {
+      const userId = params[6];
+      const updatedUser = {
+        name: params[0],
+        avatar: params[1],
+        bio: params[2],
+        location: params[3],
+        gender: params[4],
+        date_of_birth: params[5]
+      };
+      
+      const index = db.users.findIndex(u => u.id === userId);
+      
+      if (index !== -1) {
+        db.users[index] = { ...db.users[index], ...updatedUser };
+        saveDatabase(db);
+      }
+      
+      return { affectedRows: 1 };
+    }
+    
+    // Handle match-related queries
+    if (sql.includes('SELECT DISTINCT u.id, u.name, u.avatar, u.bio, u.location, u.date_of_birth, u.gender')) {
+      // Return all users except the current user as potential matches
+      return db.users.filter(u => u.id !== params[0]);
+    }
+    
+    if (sql.includes('SELECT * FROM matches WHERE')) {
+      const userId1 = params[0];
+      const userId2 = params[1];
+      const matchUserId1 = params[2];
+      const matchUserId2 = params[3];
+      
+      return db.matches.filter(
+        m => (m.user_id_1 === userId1 && m.user_id_2 === userId2) || 
+             (m.user_id_1 === matchUserId1 && m.user_id_2 === matchUserId2)
+      );
+    }
+    
+    if (sql.includes('UPDATE matches SET match_score = ? WHERE id = ?')) {
+      const matchId = params[1];
+      const newScore = params[0];
+      
+      const index = db.matches.findIndex(m => m.id === matchId);
+      
+      if (index !== -1) {
+        db.matches[index].match_score = newScore;
+        saveDatabase(db);
+      }
+      
+      return { affectedRows: 1 };
+    }
+    
+    if (sql.includes('INSERT INTO matches')) {
+      const newId = db.matches.length ? Math.max(...db.matches.map(m => m.id)) + 1 : 1;
+      const newMatch = {
+        id: newId,
+        user_id_1: params[0],
+        user_id_2: params[1],
+        match_score: params[2],
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+      
+      db.matches.push(newMatch);
+      saveDatabase(db);
+      
+      return { insertId: newId };
+    }
+    
+    if (sql.includes('UPDATE matches SET status = ? WHERE id = ?')) {
+      const matchId = params[1];
+      const newStatus = params[0];
+      
+      const index = db.matches.findIndex(m => m.id === matchId);
+      
+      if (index !== -1) {
+        db.matches[index].status = newStatus;
+        saveDatabase(db);
+      }
+      
+      return { affectedRows: 1 };
+    }
+    
+    // Handle messages
+    if (sql.includes('SELECT m.*, u1.name as sender_name, u1.avatar as sender_avatar FROM messages m')) {
+      const userId = params[0];
+      const otherUserId = params[1];
+      
+      const messages = db.messages.filter(
+        m => (m.sender_id === userId && m.receiver_id === otherUserId) || 
+             (m.sender_id === otherUserId && m.receiver_id === userId)
+      ).map(m => {
+        const sender = db.users.find(u => u.id === m.sender_id);
+        return {
+          ...m,
+          sender_name: sender?.name,
+          sender_avatar: sender?.avatar
+        };
+      });
+      
+      return messages;
+    }
+    
+    if (sql.includes('UPDATE messages SET read = true')) {
+      const otherUserId = params[0];
+      const userId = params[1];
+      
+      db.messages.forEach((m, index) => {
+        if (m.sender_id === otherUserId && m.receiver_id === userId && !m.read) {
+          db.messages[index].read = true;
+        }
+      });
+      
+      saveDatabase(db);
+      return { affectedRows: 1 };
+    }
+    
+    if (sql.includes('INSERT INTO messages')) {
+      const newId = db.messages.length ? Math.max(...db.messages.map(m => m.id)) + 1 : 1;
+      const newMessage = {
+        id: newId,
+        sender_id: params[0],
+        receiver_id: params[1],
+        content: params[2],
+        read: false,
+        created_at: new Date().toISOString()
+      };
+      
+      db.messages.push(newMessage);
+      saveDatabase(db);
+      
+      const sender = db.users.find(u => u.id === newMessage.sender_id);
+      
+      return [{
+        id: newId,
+        sender_id: newMessage.sender_id,
+        receiver_id: newMessage.receiver_id,
+        content: newMessage.content,
+        read: newMessage.read,
+        created_at: newMessage.created_at,
+        sender_name: sender?.name,
+        sender_avatar: sender?.avatar
+      }];
+    }
+    
+    if (sql.includes('SELECT COUNT(*) as count FROM messages')) {
+      const userId = params[0];
+      const unreadCount = db.messages.filter(m => m.receiver_id === userId && !m.read).length;
+      
+      return [{ count: unreadCount }];
+    }
+    
+    // Events
+    if (sql.includes('INSERT INTO events')) {
+      const newId = db.events.length ? Math.max(...db.events.map(e => e.id)) + 1 : 1;
+      const newEvent = {
+        id: newId,
+        creator_id: params[0],
+        title: params[1],
+        description: params[2],
+        location: params[3],
+        event_date: params[4],
+        created_at: new Date().toISOString()
+      };
+      
+      db.events.push(newEvent);
+      saveDatabase(db);
+      
+      const creator = db.users.find(u => u.id === newEvent.creator_id);
+      
+      return [{
+        id: newId,
+        ...newEvent,
+        creator_name: creator?.name
+      }];
+    }
+    
+    // If no specific handler, return empty array
+    console.warn('Unhandled query:', sql, params);
+    return [];
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error('Query error:', error);
     throw error;
   }
 };

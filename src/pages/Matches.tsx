@@ -6,7 +6,7 @@ import PageTransition from '@/components/ui/PageTransition';
 import MatchCard from '@/components/matches/MatchCard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, HeartIcon, PlusCircleIcon, StarIcon } from 'lucide-react';
+import { Loader2, Heart, PlusCircle, Star } from 'lucide-react';
 import { useMatches } from '@/hooks/use-matches';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
@@ -39,15 +39,15 @@ const Matches = () => {
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full md:w-auto">
                 <TabsList className="w-full md:w-auto bg-white/50 backdrop-blur-sm">
                   <TabsTrigger value="recommended" className="flex-1 md:flex-initial">
-                    <StarIcon className="w-4 h-4 mr-1" />
+                    <Star className="w-4 h-4 mr-1" />
                     Recommended
                   </TabsTrigger>
                   <TabsTrigger value="new" className="flex-1 md:flex-initial">
-                    <PlusCircleIcon className="w-4 h-4 mr-1" />
+                    <PlusCircle className="w-4 h-4 mr-1" />
                     New
                   </TabsTrigger>
                   <TabsTrigger value="favorites" className="flex-1 md:flex-initial">
-                    <HeartIcon className="w-4 h-4 mr-1" />
+                    <Heart className="w-4 h-4 mr-1" />
                     Favorites
                   </TabsTrigger>
                 </TabsList>
@@ -86,7 +86,7 @@ const Matches = () => {
                         className="bg-white/20 border-white/30 hover:bg-white/30"
                         onClick={() => setActiveTab('new')}
                       >
-                        <PlusCircleIcon className="w-4 h-4 mr-2" />
+                        <PlusCircle className="w-4 h-4 mr-2" />
                         Explore New Matches
                       </Button>
                     )}
