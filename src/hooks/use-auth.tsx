@@ -1,7 +1,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { loginUser, registerUser, User, LoginCredentials, RegisterData } from '@/services/userService';
-import { initializeDatabase } from '@/services/database';
+import { User, LoginCredentials, RegisterData } from '@/services/userService';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -23,26 +23,94 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const initializeApp = async () => {
+    const initializeAuth = async () => {
       try {
-        // Initialize database
-        const success = await initializeDatabase();
-        setInitialized(success);
+        setInitialized(true);
         
-        // Check for saved user in localStorage
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
+        // Set up auth state listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            setLoading(true);
+            
+            if (session?.user) {
+              try {
+                // Get the user profile
+                const { data: profile, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profileError) {
+                  console.error('Error getting user profile from session:', profileError);
+                  setUser(null);
+                } else {
+                  setUser({
+                    id: session.user.id,
+                    email: session.user.email!,
+                    name: profile.name,
+                    avatar: profile.avatar,
+                    bio: profile.bio,
+                    location: profile.location,
+                    gender: profile.gender,
+                    dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+                    created_at: profile.created_at ? new Date(profile.created_at) : undefined
+                  });
+                }
+              } catch (err) {
+                console.error('Error processing auth state change:', err);
+                setUser(null);
+              }
+            } else {
+              setUser(null);
+            }
+            
+            setLoading(false);
+          }
+        );
+        
+        // THEN check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // Get the user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profileError) {
+            console.error('Error getting user profile from initial session:', profileError);
+            setUser(null);
+          } else {
+            setUser({
+              id: session.user.id,
+              email: session.user.email!,
+              name: profile.name,
+              avatar: profile.avatar,
+              bio: profile.bio,
+              location: profile.location,
+              gender: profile.gender,
+              dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+              created_at: profile.created_at ? new Date(profile.created_at) : undefined
+            });
+          }
         }
+        
+        setLoading(false);
+        
+        return () => {
+          subscription.unsubscribe();
+        };
       } catch (err) {
-        console.error('Initialization error:', err);
-        setError('Failed to initialize the application');
-      } finally {
+        console.error('Auth initialization error:', err);
+        setError('Failed to initialize authentication');
         setLoading(false);
       }
     };
 
-    initializeApp();
+    initializeAuth();
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
@@ -50,9 +118,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const loggedInUser = await loginUser(credentials);
-      setUser(loggedInUser);
-      localStorage.setItem('user', JSON.stringify(loggedInUser));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // User state will be updated by the auth state listener
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
@@ -69,9 +144,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const newUser = await registerUser(data);
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name
+          }
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast.success('Registration successful! Check your email to confirm your account.');
+      // User state will be updated by the auth state listener
+      
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
@@ -83,9 +172,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Logout error:', error);
+        toast.error('Error signing out');
+      }
+      
+      // User state will be updated by the auth state listener
+    } catch (err) {
+      console.error('Logout error:', err);
+      toast.error('Error signing out');
+    }
   };
 
   return (

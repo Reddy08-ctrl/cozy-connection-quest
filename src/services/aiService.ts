@@ -1,5 +1,6 @@
 
 import { User } from './userService';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AiSuggestion {
   text: string;
@@ -43,13 +44,95 @@ const extractTopics = (text: string): string[] => {
   return topics;
 };
 
+// Call Groq-powered edge function for AI suggestions
+export const getAiChatSuggestions = async (
+  userProfile: User, 
+  otherUserProfile: User,
+  messageHistory: { content: string; senderId: number }[]
+): Promise<AiSuggestion[]> => {
+  try {
+    // Convert message history to the format expected by the AI assistant
+    const messages = messageHistory.map(msg => ({
+      role: msg.senderId === userProfile.id ? "user" : "assistant",
+      content: msg.content
+    }));
+    
+    // Prepare a prompt for getting suggestions
+    messages.push({
+      role: "user",
+      content: "Can you suggest 5 conversation starters or responses I could use next in this conversation? Keep them short, natural, and engaging. Just list the 5 suggestions without any additional text."
+    });
+    
+    // Call the edge function
+    const { data, error } = await supabase.functions.invoke('ai-dating-assistant', {
+      body: {
+        messages,
+        userProfile,
+        otherUserProfile
+      }
+    });
+    
+    if (error) {
+      console.error('Error calling AI assistant:', error);
+      throw error;
+    }
+    
+    // Parse the AI suggestions
+    const suggestionText = data.message;
+    
+    // Split the response into separate suggestions
+    // The AI should return a list of suggestions, which we'll try to parse
+    const suggestionRegex = /^(?:\d+\.\s*|[-*•]\s*)?(.+)$/gm;
+    const matches = [...suggestionText.matchAll(suggestionRegex)];
+    
+    // Extract suggestions and assign confidence levels
+    const suggestions = matches
+      .map((match, index) => ({
+        text: match[1].trim(),
+        confidence: 0.9 - (index * 0.05)  // Assign slightly decreasing confidence
+      }))
+      .filter(s => s.text.length > 0)
+      .slice(0, 5);  // Limit to 5 suggestions
+    
+    // If we couldn't parse suggestions properly, fall back
+    if (suggestions.length === 0) {
+      return [
+        { text: 'How are you today?', confidence: 0.7 },
+        { text: 'What are your plans for the weekend?', confidence: 0.7 },
+        { text: 'Tell me more about yourself!', confidence: 0.7 }
+      ];
+    }
+    
+    return suggestions;
+  } catch (error) {
+    console.error('Error generating AI suggestions:', error);
+    // Fallback suggestions if the AI call fails
+    return [
+      { text: 'How are you today?', confidence: 0.7 },
+      { text: 'What are your plans for the weekend?', confidence: 0.7 },
+      { text: 'Tell me more about yourself!', confidence: 0.7 },
+      { text: 'What kind of music do you enjoy?', confidence: 0.7 },
+      { text: 'Have you seen any good movies lately?', confidence: 0.7 }
+    ];
+  }
+};
+
 // Generate chat suggestions based on message history and user profiles
-export const generateChatSuggestions = (
+export const generateChatSuggestions = async (
   userProfile: User,
   otherUserProfile: User,
   messageHistory: { content: string; senderId: number }[]
-): AiSuggestion[] => {
+): Promise<AiSuggestion[]> => {
   try {
+    // Try to get AI-powered suggestions
+    const aiSuggestions = await getAiChatSuggestions(userProfile, otherUserProfile, messageHistory);
+    
+    // If we got good suggestions from the AI, return those
+    if (aiSuggestions.length > 0) {
+      return aiSuggestions;
+    }
+    
+    // Fallback to rule-based suggestions
     const suggestions: AiSuggestion[] = [];
     
     // Basic suggestions always available

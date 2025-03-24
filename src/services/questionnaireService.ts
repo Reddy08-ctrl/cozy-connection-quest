@@ -1,5 +1,5 @@
 
-import { query } from './database';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Question {
   id: number;
@@ -8,7 +8,7 @@ export interface Question {
 }
 
 export interface UserAnswer {
-  userId: number;
+  userId: string;
   questionId: number;
   answer: string;
 }
@@ -16,10 +16,43 @@ export interface UserAnswer {
 // Get all questions
 export const getQuestions = async (): Promise<Question[]> => {
   try {
-    const questions = await query('SELECT * FROM questions');
-    return Array.isArray(questions) ? questions : [];
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*')
+      .order('id', { ascending: true });
+    
+    if (error) {
+      console.error('Error getting questions:', error);
+      return [];
+    }
+    
+    return data || [];
   } catch (error) {
     console.error('Error getting questions:', error);
+    return [];
+  }
+};
+
+// Get user answers
+export const getUserAnswers = async (userId: string): Promise<UserAnswer[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_answers')
+      .select('*')
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error getting user answers:', error);
+      return [];
+    }
+    
+    return (data || []).map(item => ({
+      userId: item.user_id,
+      questionId: item.question_id,
+      answer: item.answer
+    }));
+  } catch (error) {
+    console.error('Error getting user answers:', error);
     return [];
   }
 };
@@ -27,50 +60,50 @@ export const getQuestions = async (): Promise<Question[]> => {
 // Save user answers
 export const saveUserAnswers = async (answers: UserAnswer[]): Promise<boolean> => {
   try {
+    // Process each answer
     for (const answer of answers) {
-      const { userId, questionId, answer: answerText } = answer;
+      // Check if answer exists already
+      const { data: existingAnswer, error: checkError } = await supabase
+        .from('user_answers')
+        .select('id')
+        .eq('user_id', answer.userId)
+        .eq('question_id', answer.questionId)
+        .single();
       
-      // Check if an answer already exists for this user and question
-      const existingAnswers = await query(
-        'SELECT * FROM user_answers WHERE user_id = ? AND question_id = ?',
-        [userId, questionId]
-      );
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error checking existing answer:', checkError);
+        continue;
+      }
       
-      if (Array.isArray(existingAnswers) && existingAnswers.length > 0) {
+      if (existingAnswer) {
         // Update existing answer
-        await query(
-          'UPDATE user_answers SET answer = ? WHERE user_id = ? AND question_id = ?',
-          [answerText, userId, questionId]
-        );
+        const { error: updateError } = await supabase
+          .from('user_answers')
+          .update({ answer: answer.answer })
+          .eq('id', existingAnswer.id);
+        
+        if (updateError) {
+          console.error('Error updating answer:', updateError);
+        }
       } else {
         // Insert new answer
-        await query(
-          'INSERT INTO user_answers (user_id, question_id, answer) VALUES (?, ?, ?)',
-          [userId, questionId, answerText]
-        );
+        const { error: insertError } = await supabase
+          .from('user_answers')
+          .insert({
+            user_id: answer.userId,
+            question_id: answer.questionId,
+            answer: answer.answer
+          });
+        
+        if (insertError) {
+          console.error('Error inserting answer:', insertError);
+        }
       }
     }
+    
     return true;
   } catch (error) {
     console.error('Error saving user answers:', error);
     return false;
-  }
-};
-
-// Get user answers
-export const getUserAnswers = async (userId: number): Promise<any[]> => {
-  try {
-    const answers = await query(
-      `SELECT ua.*, q.question, q.category 
-       FROM user_answers ua
-       JOIN questions q ON ua.question_id = q.id
-       WHERE ua.user_id = ?`,
-      [userId]
-    );
-    
-    return Array.isArray(answers) ? answers : [];
-  } catch (error) {
-    console.error('Error getting user answers:', error);
-    return [];
   }
 };

@@ -1,222 +1,261 @@
 
-import { query } from './database';
+import { supabase } from '@/integrations/supabase/client';
+import { User } from './userService';
 import { getUserAnswers } from './questionnaireService';
-import { getUserProfile } from './userService';
 
 export interface Match {
   id: number;
-  userId: number;
-  matchedUserId: number;
+  userId: string;
+  matchedUser: User;
   matchScore: number;
   status: 'pending' | 'accepted' | 'rejected';
-  matchedUser: {
-    name: string;
-    avatar?: string;
-    bio?: string;
-    location?: string;
-    age?: number;
-  };
+  createdAt: Date;
 }
 
-// Calculate the age from date of birth
-const calculateAge = (dateOfBirth: Date): number => {
-  const today = new Date();
-  const birthDate = new Date(dateOfBirth);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age;
-};
-
-// Simple function to calculate the similarity between two strings
-const calculateStringSimilarity = (str1: string, str2: string): number => {
-  // Convert to lowercase
-  const s1 = str1.toLowerCase();
-  const s2 = str2.toLowerCase();
-  
-  // Count matching words
-  const words1 = s1.split(/\s+/);
-  const words2 = s2.split(/\s+/);
-  
-  // Create a set of all unique words
-  const uniqueWords = new Set([...words1, ...words2]);
-  
-  // Count words that appear in both strings
-  let matchingWords = 0;
-  uniqueWords.forEach(word => {
-    if (words1.includes(word) && words2.includes(word)) {
-      matchingWords++;
+// Helper function to calculate match score
+const calculateMatchScore = async (userId: string, potentialMatchId: string): Promise<number> => {
+  try {
+    // Get answers for both users
+    const userAnswers = await getUserAnswers(userId);
+    const matchAnswers = await getUserAnswers(potentialMatchId);
+    
+    if (userAnswers.length === 0 || matchAnswers.length === 0) {
+      // If either user hasn't answered questions, return a default score
+      return 0.5;
     }
-  });
-  
-  // Jaccard similarity coefficient
-  return uniqueWords.size > 0 ? matchingWords / uniqueWords.size : 0;
-};
-
-// Calculate similarity between two sets of answers
-const calculateSimilarity = (userAnswers: any[], otherUserAnswers: any[]): number => {
-  // Create a map of question_id to answer for quick lookup
-  const userAnswersMap = new Map();
-  userAnswers.forEach(answer => {
-    userAnswersMap.set(answer.question_id, answer.answer);
-  });
-  
-  const otherUserAnswersMap = new Map();
-  otherUserAnswers.forEach(answer => {
-    otherUserAnswersMap.set(answer.question_id, answer.answer);
-  });
-  
-  let totalSimilarity = 0;
-  let questionCount = 0;
-  
-  // For each question that both users have answered
-  for (const [questionId, userAnswer] of userAnswersMap.entries()) {
-    if (otherUserAnswersMap.has(questionId)) {
-      const otherUserAnswer = otherUserAnswersMap.get(questionId);
-      
-      // Calculate string similarity
-      const similarity = calculateStringSimilarity(userAnswer, otherUserAnswer);
-      
-      totalSimilarity += similarity;
-      questionCount++;
+    
+    // Create maps of question ID to answer for easy comparison
+    const userAnswerMap = new Map(userAnswers.map(a => [a.questionId, a.answer]));
+    const matchAnswerMap = new Map(matchAnswers.map(a => [a.questionId, a.answer]));
+    
+    // Find common questions
+    const commonQuestionIds = [...userAnswerMap.keys()].filter(id => matchAnswerMap.has(id));
+    
+    if (commonQuestionIds.length === 0) {
+      // If no common questions, return a default score
+      return 0.5;
     }
+    
+    // Calculate similarity score based on common answers
+    let similarityScore = 0;
+    
+    for (const questionId of commonQuestionIds) {
+      const userAnswer = userAnswerMap.get(questionId) || '';
+      const matchAnswer = matchAnswerMap.get(questionId) || '';
+      
+      // Very simple string similarity calculation
+      // In a real app, you'd want more sophisticated analysis
+      if (userAnswer.toLowerCase() === matchAnswer.toLowerCase()) {
+        similarityScore += 1;
+      } else {
+        // Check for partial matches
+        const userWords = new Set(userAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+        const matchWords = new Set(matchAnswer.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+        
+        const commonWords = [...userWords].filter(word => matchWords.has(word));
+        
+        if (commonWords.length > 0) {
+          similarityScore += 0.5 * (commonWords.length / Math.max(userWords.size, matchWords.size));
+        }
+      }
+    }
+    
+    // Normalize score between 0 and 1
+    return similarityScore / commonQuestionIds.length;
+  } catch (error) {
+    console.error('Error calculating match score:', error);
+    return 0.5; // Default score on error
   }
-  
-  // Return average similarity across all questions
-  return questionCount > 0 ? totalSimilarity / questionCount : 0;
 };
 
 // Find matches for a user
-export const findMatches = async (userId: number): Promise<Match[]> => {
+export const findMatches = async (userId: string): Promise<Match[]> => {
   try {
-    // Get user's profile and answers
-    const userProfile = await getUserProfile(userId);
-    const userAnswers = await getUserAnswers(userId);
+    // Get all profiles except the current user
+    const { data: potentialMatches, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', userId);
     
-    if (!userAnswers || userAnswers.length === 0) {
-      throw new Error('User has not completed the questionnaire');
-    }
-    
-    // Get other users who have completed the questionnaire
-    const otherUsers = await query(
-      `SELECT DISTINCT u.id, u.name, u.avatar, u.bio, u.location, u.date_of_birth, u.gender
-       FROM users u
-       JOIN user_answers ua ON u.id = ua.user_id
-       WHERE u.id != ?
-       GROUP BY u.id
-       HAVING COUNT(ua.id) > 0`,
-      [userId]
-    );
-    
-    if (!Array.isArray(otherUsers) || otherUsers.length === 0) {
+    if (profilesError) {
+      console.error('Error finding potential matches:', profilesError);
       return [];
     }
     
+    // Check existing matches to avoid duplicates
+    const { data: existingMatches, error: matchesError } = await supabase
+      .from('matches')
+      .select('user_id_1, user_id_2, id, match_score, status, created_at')
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+    
+    if (matchesError) {
+      console.error('Error checking existing matches:', matchesError);
+      return [];
+    }
+    
+    // Map of user IDs to existing match data
+    const existingMatchMap = new Map();
+    
+    for (const match of existingMatches || []) {
+      const otherUserId = match.user_id_1 === userId ? match.user_id_2 : match.user_id_1;
+      existingMatchMap.set(otherUserId, {
+        id: match.id,
+        score: match.match_score,
+        status: match.status,
+        createdAt: match.created_at
+      });
+    }
+    
+    // Process each potential match
     const matches: Match[] = [];
     
-    // Calculate match scores with other users
-    for (const otherUser of otherUsers) {
-      const otherUserAnswers = await getUserAnswers(otherUser.id);
-      
-      // Calculate similarity score
-      const similarityScore = calculateSimilarity(userAnswers, otherUserAnswers);
-      
-      // Check if a match already exists
-      const existingMatches = await query(
-        `SELECT * FROM matches 
-         WHERE (user_id_1 = ? AND user_id_2 = ?) OR (user_id_1 = ? AND user_id_2 = ?)`,
-        [userId, otherUser.id, otherUser.id, userId]
-      );
-      
-      let matchId = 0;
-      let matchStatus = 'pending';
-      
-      if (Array.isArray(existingMatches) && existingMatches.length > 0) {
-        const existingMatch = existingMatches[0];
-        matchId = existingMatch.id;
-        matchStatus = existingMatch.status;
+    for (const profile of potentialMatches || []) {
+      if (existingMatchMap.has(profile.id)) {
+        // We already have a match with this user
+        const existingMatch = existingMatchMap.get(profile.id);
         
-        // Update the match score if it has changed
-        if (Math.abs(existingMatch.match_score - similarityScore) > 0.1) {
-          await query(
-            'UPDATE matches SET match_score = ? WHERE id = ?',
-            [similarityScore, matchId]
-          );
-        }
-      } else {
-        // Create a new match
-        const result = await query(
-          'INSERT INTO matches (user_id_1, user_id_2, match_score) VALUES (?, ?, ?)',
-          [userId, otherUser.id, similarityScore]
-        );
-        matchId = result.insertId;
-      }
-      
-      // Add to matches list if the score is above a threshold
-      if (similarityScore > 0.4) { // Arbitrary threshold
         matches.push({
-          id: matchId,
+          id: existingMatch.id,
           userId,
-          matchedUserId: otherUser.id,
-          matchScore: similarityScore,
-          status: matchStatus as 'pending' | 'accepted' | 'rejected',
           matchedUser: {
-            name: otherUser.name,
-            avatar: otherUser.avatar,
-            bio: otherUser.bio,
-            location: otherUser.location,
-            age: otherUser.date_of_birth ? calculateAge(otherUser.date_of_birth) : undefined
-          }
+            id: profile.id,
+            email: profile.email,
+            name: profile.name,
+            avatar: profile.avatar,
+            bio: profile.bio,
+            location: profile.location,
+            gender: profile.gender,
+            dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+            created_at: profile.created_at ? new Date(profile.created_at) : undefined
+          },
+          matchScore: existingMatch.score,
+          status: existingMatch.status,
+          createdAt: new Date(existingMatch.createdAt)
+        });
+      } else {
+        // Calculate match score for new potential match
+        const matchScore = await calculateMatchScore(userId, profile.id);
+        
+        // Insert the new match
+        const { data: newMatch, error: insertError } = await supabase
+          .from('matches')
+          .insert({
+            user_id_1: userId,
+            user_id_2: profile.id,
+            match_score: matchScore,
+            status: 'pending'
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('Error creating new match:', insertError);
+          continue;
+        }
+        
+        matches.push({
+          id: newMatch.id,
+          userId,
+          matchedUser: {
+            id: profile.id,
+            email: profile.email,
+            name: profile.name,
+            avatar: profile.avatar,
+            bio: profile.bio,
+            location: profile.location,
+            gender: profile.gender,
+            dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+            created_at: profile.created_at ? new Date(profile.created_at) : undefined
+          },
+          matchScore,
+          status: 'pending',
+          createdAt: new Date(newMatch.created_at)
         });
       }
     }
     
-    // Sort matches by score (highest first)
-    return matches.sort((a, b) => b.matchScore - a.matchScore);
-    
+    return matches;
   } catch (error) {
     console.error('Error finding matches:', error);
     return [];
   }
 };
 
-// Update match status
+// Update match status (accept or reject)
 export const updateMatchStatus = async (
-  matchId: number, 
-  userId: number, 
+  matchId: number,
+  userId: string,
   status: 'accepted' | 'rejected'
 ): Promise<boolean> => {
   try {
-    // Get the match to verify the user is part of it
-    const matches = await query(
-      'SELECT * FROM matches WHERE id = ?',
-      [matchId]
-    );
-    
-    if (!Array.isArray(matches) || matches.length === 0) {
-      throw new Error('Match not found');
-    }
-    
-    const match = matches[0];
-    
-    // Check if the user is part of this match
-    if (match.user_id_1 !== userId && match.user_id_2 !== userId) {
-      throw new Error('User is not part of this match');
-    }
-    
     // Update the match status
-    await query(
-      'UPDATE matches SET status = ? WHERE id = ?',
-      [status, matchId]
-    );
+    const { error } = await supabase
+      .from('matches')
+      .update({ status })
+      .eq('id', matchId)
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+    
+    if (error) {
+      console.error('Error updating match status:', error);
+      return false;
+    }
     
     return true;
   } catch (error) {
     console.error('Error updating match status:', error);
     return false;
+  }
+};
+
+// Get matched users (accepted matches)
+export const getAcceptedMatches = async (userId: string): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select(`
+        id,
+        match_score,
+        status,
+        created_at,
+        user_id_1,
+        user_id_2,
+        profiles:user_id_1(id, email, name, avatar, bio, location, gender, date_of_birth, created_at),
+        profiles2:user_id_2(id, email, name, avatar, bio, location, gender, date_of_birth, created_at)
+      `)
+      .eq('status', 'accepted')
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+    
+    if (error) {
+      console.error('Error getting accepted matches:', error);
+      return [];
+    }
+    
+    // Transform the data
+    return (data || []).map(match => {
+      const isUserOne = match.user_id_1 === userId;
+      const otherUserProfile = isUserOne ? match.profiles2 : match.profiles;
+      
+      return {
+        id: match.id,
+        userId,
+        matchedUser: {
+          id: otherUserProfile.id,
+          email: otherUserProfile.email,
+          name: otherUserProfile.name,
+          avatar: otherUserProfile.avatar,
+          bio: otherUserProfile.bio,
+          location: otherUserProfile.location,
+          gender: otherUserProfile.gender,
+          dateOfBirth: otherUserProfile.date_of_birth ? new Date(otherUserProfile.date_of_birth) : undefined,
+          created_at: otherUserProfile.created_at ? new Date(otherUserProfile.created_at) : undefined
+        },
+        matchScore: match.match_score,
+        status: match.status,
+        createdAt: new Date(match.created_at)
+      };
+    });
+  } catch (error) {
+    console.error('Error getting accepted matches:', error);
+    return [];
   }
 };

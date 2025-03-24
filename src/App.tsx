@@ -3,12 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
-import { initializeDatabase } from "@/services/database";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
@@ -17,7 +17,36 @@ import Matches from "./pages/Matches";
 import Chat from "./pages/Chat";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1
+    }
+  }
+});
+
+// Component to handle protected routes
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  return <>{children}</>;
+};
 
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -25,13 +54,11 @@ const App = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // Initialize database (now only localStorage)
-        await initializeDatabase();
         setIsInitialized(true);
-        console.log("Database initialized successfully");
+        console.log("Application initialized successfully");
       } catch (error) {
-        console.error("Failed to initialize database:", error);
-        toast.error("Failed to initialize database");
+        console.error("Failed to initialize application:", error);
+        toast.error("Failed to initialize application");
         setIsInitialized(true); // Continue anyway
       }
     };
@@ -61,10 +88,26 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/questionnaire" element={<Questionnaire />} />
-                <Route path="/matches" element={<Matches />} />
-                <Route path="/chat/:id" element={<Chat />} />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } />
+                <Route path="/questionnaire" element={
+                  <ProtectedRoute>
+                    <Questionnaire />
+                  </ProtectedRoute>
+                } />
+                <Route path="/matches" element={
+                  <ProtectedRoute>
+                    <Matches />
+                  </ProtectedRoute>
+                } />
+                <Route path="/chat/:id" element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                } />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AnimatePresence>

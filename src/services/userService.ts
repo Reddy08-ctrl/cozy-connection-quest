@@ -1,5 +1,5 @@
 
-import { query } from './database';
+import { supabase } from '@/integrations/supabase/client';
 import bcrypt from 'bcryptjs';
 
 export interface User {
@@ -37,30 +37,49 @@ export const registerUser = async (userData: RegisterData): Promise<User> => {
   try {
     const { email, password, name } = userData;
     
-    // Check if user already exists
-    const existingUser = await query('SELECT * FROM users WHERE email = ?', [email]);
-    if (Array.isArray(existingUser) && existingUser.length > 0) {
-      throw new Error('User with this email already exists');
+    // Register user with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name
+        }
+      }
+    });
+    
+    if (authError) {
+      throw new Error(authError.message);
     }
     
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Insert the new user
-    const result = await query(
-      'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-      [email, hashedPassword, name]
-    );
-    
-    // Get the inserted user
-    const id = result.insertId;
-    const newUser = await query('SELECT id, email, name FROM users WHERE id = ?', [id]);
-    
-    if (Array.isArray(newUser) && newUser.length > 0) {
-      return newUser[0] as User;
+    if (!authData.user) {
+      throw new Error('Failed to create user');
     }
     
-    throw new Error('Failed to create user');
+    // Get the user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+    
+    if (profileError) {
+      console.error('Error getting user profile after registration:', profileError);
+      // The trigger should have created the profile, but if there's an error,
+      // we'll still return what we can
+    }
+    
+    return {
+      id: authData.user.id,
+      email: authData.user.email!,
+      name: profile?.name || name,
+      avatar: profile?.avatar,
+      bio: profile?.bio,
+      location: profile?.location,
+      gender: profile?.gender,
+      dateOfBirth: profile?.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+      created_at: profile?.created_at ? new Date(profile.created_at) : new Date()
+    };
   } catch (error) {
     console.error('Error registering user:', error);
     throw error;
@@ -72,24 +91,43 @@ export const loginUser = async (credentials: LoginCredentials): Promise<User> =>
   try {
     const { email, password } = credentials;
     
-    // Find the user
-    const users = await query('SELECT * FROM users WHERE email = ?', [email]);
+    // Login with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
     
-    if (!Array.isArray(users) || users.length === 0) {
-      throw new Error('User not found');
+    if (authError) {
+      throw new Error(authError.message);
     }
     
-    const user = users[0];
-    
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new Error('Invalid password');
+    if (!authData.user) {
+      throw new Error('Login failed');
     }
     
-    // Don't return the password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword as User;
+    // Get the user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+    
+    if (profileError) {
+      console.error('Error getting user profile after login:', profileError);
+      throw new Error('Error retrieving user profile');
+    }
+    
+    return {
+      id: authData.user.id,
+      email: authData.user.email!,
+      name: profile.name,
+      avatar: profile.avatar,
+      bio: profile.bio,
+      location: profile.location,
+      gender: profile.gender,
+      dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
+      created_at: profile.created_at ? new Date(profile.created_at) : new Date()
+    };
   } catch (error) {
     console.error('Error logging in:', error);
     throw error;
@@ -97,33 +135,41 @@ export const loginUser = async (credentials: LoginCredentials): Promise<User> =>
 };
 
 // Update user profile
-export const updateUserProfile = async (userId: number, profileData: UserProfile): Promise<User> => {
+export const updateUserProfile = async (userId: string, profileData: UserProfile): Promise<User> => {
   try {
     const { name, avatar, bio, location, gender, dateOfBirth } = profileData;
     
-    // Update the user profile
-    await query(
-      `UPDATE users SET 
-       name = ?, 
-       avatar = ?, 
-       bio = ?, 
-       location = ?, 
-       gender = ?, 
-       date_of_birth = ?
-       WHERE id = ?`,
-      [name, avatar, bio, location, gender, dateOfBirth, userId]
-    );
+    // Update the profile
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name,
+        avatar,
+        bio,
+        location,
+        gender,
+        date_of_birth: dateOfBirth
+      })
+      .eq('id', userId)
+      .select()
+      .single();
     
-    // Get the updated user
-    const updatedUser = await query('SELECT * FROM users WHERE id = ?', [userId]);
-    
-    if (!Array.isArray(updatedUser) || updatedUser.length === 0) {
-      throw new Error('User not found after update');
+    if (error) {
+      console.error('Error updating user profile:', error);
+      throw new Error('Failed to update profile');
     }
     
-    // Don't return the password
-    const { password: _, ...userWithoutPassword } = updatedUser[0];
-    return userWithoutPassword as User;
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      avatar: data.avatar,
+      bio: data.bio,
+      location: data.location,
+      gender: data.gender,
+      dateOfBirth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
+      created_at: data.created_at ? new Date(data.created_at) : undefined
+    };
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;
@@ -131,19 +177,30 @@ export const updateUserProfile = async (userId: number, profileData: UserProfile
 };
 
 // Get user profile
-export const getUserProfile = async (userId: number): Promise<User> => {
+export const getUserProfile = async (userId: string | number): Promise<User> => {
   try {
-    const users = await query('SELECT * FROM users WHERE id = ?', [userId]);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
     
-    if (!Array.isArray(users) || users.length === 0) {
+    if (error) {
+      console.error('Error getting user profile:', error);
       throw new Error('User not found');
     }
     
-    const user = users[0];
-    
-    // Don't return the password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword as User;
+    return {
+      id: data.id,
+      email: data.email,
+      name: data.name,
+      avatar: data.avatar,
+      bio: data.bio,
+      location: data.location,
+      gender: data.gender,
+      dateOfBirth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
+      created_at: data.created_at ? new Date(data.created_at) : undefined
+    };
   } catch (error) {
     console.error('Error getting user profile:', error);
     throw error;

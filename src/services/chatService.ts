@@ -1,5 +1,5 @@
 
-import { query } from './database';
+import { supabase } from '@/integrations/supabase/client';
 import { getUserProfile } from './userService';
 import { generateChatSuggestions } from './aiService';
 
@@ -17,40 +17,54 @@ export interface Message {
 // Get chat history between two users
 export const getChatHistory = async (userId: number, otherUserId: number): Promise<Message[]> => {
   try {
-    const messages = await query(
-      `SELECT m.*, 
-              u1.name as sender_name, 
-              u1.avatar as sender_avatar
-       FROM messages m
-       JOIN users u1 ON m.sender_id = u1.id
-       WHERE (m.sender_id = ? AND m.receiver_id = ?)
-          OR (m.sender_id = ? AND m.receiver_id = ?)
-       ORDER BY m.created_at ASC`,
-      [userId, otherUserId, otherUserId, userId]
-    );
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select(`
+        id,
+        sender_id,
+        receiver_id,
+        content,
+        read,
+        created_at,
+        profiles!sender_id (name, avatar)
+      `)
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .or(`sender_id.eq.${otherUserId},receiver_id.eq.${otherUserId}`)
+      .order('created_at', { ascending: true });
     
-    if (!Array.isArray(messages)) {
+    if (error) {
+      console.error('Error getting chat history:', error);
       return [];
     }
     
     // Mark messages as read
-    await query(
-      `UPDATE messages 
-       SET read = true 
-       WHERE sender_id = ? AND receiver_id = ? AND read = false`,
-      [otherUserId, userId]
-    );
+    if (messages) {
+      const unreadMessages = messages.filter(
+        m => m.sender_id === otherUserId && m.receiver_id === userId && !m.read
+      );
+      
+      if (unreadMessages.length > 0) {
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ read: true })
+          .in('id', unreadMessages.map(m => m.id));
+        
+        if (updateError) {
+          console.error('Error marking messages as read:', updateError);
+        }
+      }
+    }
     
     // Format messages
-    return messages.map(message => ({
+    return (messages || []).map(message => ({
       id: message.id,
       senderId: message.sender_id,
       receiverId: message.receiver_id,
       content: message.content,
       read: Boolean(message.read),
-      createdAt: message.created_at,
-      senderName: message.sender_name,
-      senderAvatar: message.sender_avatar
+      createdAt: new Date(message.created_at),
+      senderName: message.profiles?.name,
+      senderAvatar: message.profiles?.avatar
     }));
     
   } catch (error) {
@@ -67,39 +81,43 @@ export const sendMessage = async (
 ): Promise<Message | null> => {
   try {
     // Insert the message
-    const result = await query(
-      'INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)',
-      [senderId, receiverId, content]
-    );
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content,
+        read: false
+      })
+      .select(`
+        id,
+        sender_id,
+        receiver_id,
+        content,
+        read,
+        created_at,
+        profiles!sender_id (name, avatar)
+      `)
+      .single();
     
-    const messageId = result.insertId;
-    
-    // Get the inserted message
-    const messages = await query(
-      `SELECT m.*, 
-              u.name as sender_name, 
-              u.avatar as sender_avatar
-       FROM messages m
-       JOIN users u ON m.sender_id = u.id
-       WHERE m.id = ?`,
-      [messageId]
-    );
-    
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (error) {
+      console.error('Error sending message:', error);
       return null;
     }
     
-    const message = messages[0];
+    if (!data) {
+      return null;
+    }
     
     return {
-      id: message.id,
-      senderId: message.sender_id,
-      receiverId: message.receiver_id,
-      content: message.content,
-      read: Boolean(message.read),
-      createdAt: message.created_at,
-      senderName: message.sender_name,
-      senderAvatar: message.sender_avatar
+      id: data.id,
+      senderId: data.sender_id,
+      receiverId: data.receiver_id,
+      content: data.content,
+      read: Boolean(data.read),
+      createdAt: new Date(data.created_at),
+      senderName: data.profiles?.name,
+      senderAvatar: data.profiles?.avatar
     };
     
   } catch (error) {
@@ -111,12 +129,18 @@ export const sendMessage = async (
 // Get unread message count
 export const getUnreadCount = async (userId: number): Promise<number> => {
   try {
-    const result = await query(
-      'SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND read = false',
-      [userId]
-    );
+    const { count, error } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('receiver_id', userId)
+      .eq('read', false);
     
-    return Array.isArray(result) ? result[0].count : 0;
+    if (error) {
+      console.error('Error getting unread count:', error);
+      return 0;
+    }
+    
+    return count || 0;
   } catch (error) {
     console.error('Error getting unread count:', error);
     return 0;
@@ -131,22 +155,30 @@ export const getAiSuggestions = async (userId: number, otherUserId: number): Pro
     const otherUserProfile = await getUserProfile(otherUserId);
     
     // Get chat history (last 10 messages)
-    const messages = await query(
-      `SELECT * FROM messages 
-       WHERE (sender_id = ? AND receiver_id = ?)
-          OR (sender_id = ? AND receiver_id = ?)
-       ORDER BY created_at DESC
-       LIMIT 10`,
-      [userId, otherUserId, otherUserId, userId]
-    );
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('content, sender_id')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .or(`sender_id.eq.${otherUserId},receiver_id.eq.${otherUserId}`)
+      .order('created_at', { ascending: false })
+      .limit(10);
     
-    const chatHistory = messages.map(m => ({
+    if (error) {
+      console.error('Error getting chat history for suggestions:', error);
+      return [
+        'How are you today?',
+        'What are your plans for the weekend?',
+        'Tell me more about yourself!'
+      ];
+    }
+    
+    const chatHistory = (messages || []).map(m => ({
       content: m.content,
       senderId: m.sender_id
     }));
     
     // Use AI service to generate suggestions
-    const suggestions = generateChatSuggestions(userProfile, otherUserProfile, chatHistory);
+    const suggestions = await generateChatSuggestions(userProfile, otherUserProfile, chatHistory);
     
     // Return just the text of the suggestions
     return suggestions.map(s => s.text);

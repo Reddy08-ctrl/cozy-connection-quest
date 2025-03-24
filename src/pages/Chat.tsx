@@ -5,26 +5,75 @@ import { motion } from 'framer-motion';
 import Layout from '@/components/layout/Layout';
 import PageTransition from '@/components/ui/PageTransition';
 import ChatInterface from '@/components/chat/ChatInterface';
-import { matches } from '@/utils/mockData';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
+import { getUserProfile } from '@/services/userService';
 
 const Chat = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    // Find the matching user
-    const foundMatch = matches.find(m => m.id === id);
+    const fetchMatch = async () => {
+      if (!user || !id) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        // Get the matched user's profile
+        const matchUser = await getUserProfile(id);
+        
+        if (matchUser) {
+          setMatch({
+            id,
+            name: matchUser.name,
+            avatar: matchUser.avatar || '/placeholder.svg',
+            bio: matchUser.bio || '',
+            location: matchUser.location || 'Unknown',
+            lastActive: new Date()
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching match:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Simulate API delay
-    setTimeout(() => {
-      setMatch(foundMatch);
-      setLoading(false);
-    }, 500);
-  }, [id]);
+    fetchMatch();
+  }, [id, user]);
+  
+  useEffect(() => {
+    // Set up real-time subscription for new messages
+    if (!user || !id) return;
+    
+    const subscription = supabase
+      .channel('new-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`
+        },
+        (payload) => {
+          // If we're in a chat with the sender, the ChatInterface will handle this
+          console.log('New message received via real-time:', payload);
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [id, user]);
   
   if (loading) {
     return (
@@ -77,7 +126,7 @@ const Chat = () => {
               transition={{ duration: 0.4 }}
               className="glass-card rounded-2xl overflow-hidden"
             >
-              <ChatInterface match={match} currentUserId="current-user" />
+              <ChatInterface match={match} currentUserId={user?.id} />
             </motion.div>
           </div>
         </div>
