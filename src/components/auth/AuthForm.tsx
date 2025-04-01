@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,14 @@ const AuthForm = () => {
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { login, register, initialized } = useAuth();
+  const { login, register, initialized, user } = useAuth();
+
+  // Add effect to check if we're already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/profile');
+    }
+  }, [user, navigate]);
 
   const toggleFormType = () => {
     setFormType(formType === 'login' ? 'register' : 'login');
@@ -31,17 +38,31 @@ const AuthForm = () => {
       return;
     }
     
+    if (!initialized) {
+      toast.error('Authentication system is not yet initialized');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
       let success = false;
       
       if (formType === 'login') {
+        console.log('Attempting login with credentials');
         success = await login({ email, password });
+        
         if (success) {
+          console.log('Login succeeded, redirecting...');
           toast.success('Login successful');
-          // The redirect will be handled by the ProtectedRoute component in App.tsx
+          // Clear form
+          setEmail('');
+          setPassword('');
+          setName('');
+          // Reset submission state
+          setIsSubmitting(false);
         } else {
+          console.log('Login failed, no success returned');
           // If login returns false, there was an error that's already been handled
           setIsSubmitting(false);
         }
@@ -55,8 +76,14 @@ const AuthForm = () => {
         success = await register({ email, password, name });
         if (success) {
           toast.success('Registration successful! Check your email for verification.');
-          // The redirect will be handled by the ProtectedRoute component in App.tsx
+          // Clear form
+          setEmail('');
+          setPassword('');
+          setName('');
+          // Reset submission state
+          setIsSubmitting(false);
         } else {
+          console.log('Registration failed, no success returned');
           // If register returns false, there was an error that's already been handled
           setIsSubmitting(false);
         }
@@ -127,7 +154,11 @@ const AuthForm = () => {
           />
         </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting || !initialized}>
+        <Button 
+          type="submit" 
+          className="w-full" 
+          disabled={isSubmitting || !initialized}
+        >
           {isSubmitting ? (
             <span className="flex items-center">
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>

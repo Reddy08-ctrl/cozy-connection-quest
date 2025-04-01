@@ -52,6 +52,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
+        
         // Set up auth state listener FIRST
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
@@ -71,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   setUser(null);
                   setHasCompletedProfile(false);
                 } else if (profile) {
-                  setUser({
+                  const userData = {
                     id: session.user.id,
                     email: session.user.email!,
                     name: profile.name || '',
@@ -81,7 +83,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     gender: profile.gender || null,
                     dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
                     created_at: profile.created_at ? new Date(profile.created_at) : undefined
-                  });
+                  };
+                  
+                  console.log('User data set from profile:', userData.id);
+                  setUser(userData);
                   
                   // Check if profile is complete
                   const isComplete = !!(profile.name && profile.bio && profile.location && profile.gender);
@@ -93,6 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setHasCompletedProfile(false);
               }
             } else {
+              console.log('No session user, setting user to null');
               setUser(null);
               setHasCompletedProfile(false);
             }
@@ -118,7 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(null);
             setHasCompletedProfile(false);
           } else if (profile) {
-            setUser({
+            const userData = {
               id: session.user.id,
               email: session.user.email!,
               name: profile.name || '',
@@ -128,7 +134,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               gender: profile.gender || null,
               dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
               created_at: profile.created_at ? new Date(profile.created_at) : undefined
-            });
+            };
+            
+            console.log('Initial user data set from session:', userData.id);
+            setUser(userData);
             
             // Check if profile is complete
             const isComplete = !!(profile.name && profile.bio && profile.location && profile.gender);
@@ -170,16 +179,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       console.log('Login successful:', !!data.user);
-      // User state will be updated by the auth state listener
+      
+      // Explicitly set loading to false on success
+      setLoading(false);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       console.error('Login error caught:', message);
       setError(message);
       toast.error(message);
-      return false;
-    } finally {
       setLoading(false);
+      return false;
     }
   };
 
@@ -206,22 +216,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log('Registration successful');
       toast.success('Registration successful! Check your email to confirm your account.');
-      // User state will be updated by the auth state listener
       
+      // Explicitly set loading to false on success
+      setLoading(false);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       console.error('Registration error caught:', message);
       setError(message);
       toast.error(message);
-      return false;
-    } finally {
       setLoading(false);
+      return false;
     }
   };
 
   const logout = async () => {
     try {
+      setLoading(true);
       console.log('Attempting logout');
       const { error } = await supabase.auth.signOut();
       
@@ -232,10 +243,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('Logout successful');
       }
       
-      // User state will be updated by the auth state listener
+      // Explicitly set loading to false and clear user on logout
+      setUser(null);
+      setHasCompletedProfile(false);
+      setLoading(false);
     } catch (err) {
       console.error('Logout error:', err);
       toast.error('Error signing out');
+      setLoading(false);
     }
   };
 

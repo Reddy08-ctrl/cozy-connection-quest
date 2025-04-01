@@ -8,14 +8,40 @@ import { useAuth } from '@/hooks/use-auth';
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, initialized } = useAuth();
   
   // Redirect if user is already authenticated
   useEffect(() => {
-    if (user && !loading) {
-      navigate('/profile');
+    console.log('Auth page - User:', !!user, 'Loading:', loading, 'Initialized:', initialized);
+    
+    if (user && !loading && initialized) {
+      console.log('Auth page - Authenticated user detected, redirecting');
+      // First check profile completion
+      if (!user.bio || !user.location || !user.gender) {
+        navigate('/profile');
+      } else {
+        // If profile is complete, check questionnaire completion via API
+        const checkQuestionnaire = async () => {
+          try {
+            const { data, error } = await fetch(`/api/user/questionnaire-status?userId=${user.id}`).then(res => res.json());
+            if (error) throw new Error(error.message);
+            
+            if (data && data.completed) {
+              navigate('/matches');
+            } else {
+              navigate('/questionnaire');
+            }
+          } catch (err) {
+            console.error('Error checking questionnaire status:', err);
+            // Default to questionnaire page if we can't determine status
+            navigate('/questionnaire');
+          }
+        };
+        
+        checkQuestionnaire();
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, initialized, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">
