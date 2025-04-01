@@ -12,10 +12,10 @@ export interface Match {
   user: {
     id: string;
     name: string;
-    avatar: string;
-    bio: string;
-    location: string;
-    dateOfBirth: Date;
+    avatar?: string;
+    bio?: string;
+    location?: string;
+    dateOfBirth?: Date;
   };
 }
 
@@ -34,7 +34,22 @@ export const useMatches = () => {
 
       try {
         const fetchedMatches = await matchService.getUserMatches(user.id);
-        setMatches(fetchedMatches);
+        // Convert the fetched matches to our internal Match type
+        const formattedMatches: Match[] = fetchedMatches.map(match => ({
+          id: match.id,
+          matchScore: match.matchScore,
+          status: match.status,
+          createdAt: match.createdAt,
+          user: {
+            id: match.user.id,
+            name: match.user.name || '',
+            avatar: match.user.avatar || '',
+            bio: match.user.bio || '',
+            location: match.user.location || '',
+            dateOfBirth: match.user.dateOfBirth
+          }
+        }));
+        setMatches(formattedMatches);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch matches';
         setError(message);

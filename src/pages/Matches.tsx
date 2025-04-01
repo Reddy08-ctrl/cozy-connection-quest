@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -107,11 +108,11 @@ const Matches = () => {
                       key={match.id}
                       match={{
                         id: match.id.toString(),
-                        name: match.otherUser.name,
-                        age: getAge(match.otherUser.dateOfBirth),
-                        location: match.otherUser.location || 'Unknown',
-                        bio: match.otherUser.bio || 'No bio available',
-                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        name: match.user.name,
+                        age: match.user.dateOfBirth ? getAge(match.user.dateOfBirth) : 0,
+                        location: match.user.location || 'Unknown',
+                        bio: match.user.bio || 'No bio available',
+                        avatar: match.user.avatar || 'https://via.placeholder.com/150',
                         compatibility: match.matchScore,
                         interests: generateRandomInterests()
                       }}
@@ -158,11 +159,11 @@ const Matches = () => {
                       key={match.id}
                       match={{
                         id: match.id.toString(),
-                        name: match.otherUser.name,
-                        age: getAge(match.otherUser.dateOfBirth),
-                        location: match.otherUser.location || 'Unknown',
-                        bio: match.otherUser.bio || 'No bio available',
-                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        name: match.user.name,
+                        age: match.user.dateOfBirth ? getAge(match.user.dateOfBirth) : 0,
+                        location: match.user.location || 'Unknown',
+                        bio: match.user.bio || 'No bio available',
+                        avatar: match.user.avatar || 'https://via.placeholder.com/150',
                         compatibility: match.matchScore,
                         interests: generateRandomInterests()
                       }}
@@ -209,11 +210,11 @@ const Matches = () => {
                       key={match.id}
                       match={{
                         id: match.id.toString(),
-                        name: match.otherUser.name,
-                        age: getAge(match.otherUser.dateOfBirth),
-                        location: match.otherUser.location || 'Unknown',
-                        bio: match.otherUser.bio || 'No bio available',
-                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        name: match.user.name,
+                        age: match.user.dateOfBirth ? getAge(match.user.dateOfBirth) : 0,
+                        location: match.user.location || 'Unknown',
+                        bio: match.user.bio || 'No bio available',
+                        avatar: match.user.avatar || 'https://via.placeholder.com/150',
                         compatibility: match.matchScore,
                         interests: generateRandomInterests()
                       }}
