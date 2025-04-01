@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -8,12 +9,26 @@ import PageTransition from '@/components/ui/PageTransition';
 import { Progress } from '@/components/ui/progress';
 import { questions } from '@/utils/mockData';
 import { toast } from 'sonner';
+import { useQuestionnaire } from '@/hooks/use-questionnaire';
 
 const Questionnaire = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
+  const { 
+    answers, 
+    setAnswer, 
+    submitAnswers, 
+    hasCompletedQuestionnaire,
+    isLoading 
+  } = useQuestionnaire();
+
+  // If questionnaire is already completed, redirect to matches
+  useEffect(() => {
+    if (hasCompletedQuestionnaire && !isLoading) {
+      navigate('/matches');
+    }
+  }, [hasCompletedQuestionnaire, isLoading, navigate]);
 
   useEffect(() => {
     // Calculate progress
@@ -22,14 +37,11 @@ const Questionnaire = () => {
   }, [currentQuestionIndex]);
 
   const handleAnswer = (id: string, answer: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [id]: answer
-    }));
+    setAnswer(parseInt(id), answer);
   };
 
-  const handleNext = () => {
-    if (!answers[questions[currentQuestionIndex].id]) {
+  const handleNext = async () => {
+    if (!answers[parseInt(questions[currentQuestionIndex].id)]) {
       toast.error('Please answer the question before proceeding');
       return;
     }
@@ -37,8 +49,12 @@ const Questionnaire = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
     } else {
-      // Simulate submitting questionnaire
-      navigate('/matches');
+      // Submit questionnaire
+      const success = await submitAnswers();
+      if (success) {
+        // Navigate to matches page
+        navigate('/matches');
+      }
     }
   };
 
@@ -49,6 +65,19 @@ const Questionnaire = () => {
   };
 
   const currentQuestion = questions[currentQuestionIndex];
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading questionnaire...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

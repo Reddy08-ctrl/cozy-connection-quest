@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,17 +26,67 @@ const queryClient = new QueryClient({
   }
 });
 
+// Create a component to check if the user has completed the questionnaire
+const useHasCompletedQuestionnaire = (userId: string) => {
+  const [hasCompleted, setHasCompleted] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkQuestionnaire = async () => {
+      if (!userId) {
+        setHasCompleted(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_answers')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+        
+        if (error) {
+          console.error('Error checking questionnaire completion:', error);
+          setHasCompleted(false);
+        } else {
+          setHasCompleted(data && data.length > 0);
+        }
+      } catch (err) {
+        console.error('Error checking questionnaire completion:', err);
+        setHasCompleted(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkQuestionnaire();
+  }, [userId]);
+
+  return { hasCompletedQuestionnaire: hasCompleted, isLoading };
+};
+
 // Component to handle protected routes
-const ProtectedRoute = ({ children, requireProfile = true }: { children: React.ReactNode, requireProfile?: boolean }) => {
+const ProtectedRoute = ({ children, requireProfile = true, requireQuestionnaire = true }: { 
+  children: React.ReactNode, 
+  requireProfile?: boolean,
+  requireQuestionnaire?: boolean 
+}) => {
   const { user, loading, hasCompletedProfile } = useAuth();
   const location = useLocation();
   
-  if (loading) {
+  // Check if questionnaire is completed
+  const { hasCompletedQuestionnaire, isLoading: questionnaireLoading } = 
+    user ? useHasCompletedQuestionnaire(user.id) : { hasCompletedQuestionnaire: false, isLoading: false };
+  
+  const isAuthLoading = loading || questionnaireLoading;
+  
+  if (isAuthLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Checking authentication...</p>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -45,9 +96,14 @@ const ProtectedRoute = ({ children, requireProfile = true }: { children: React.R
     return <Navigate to="/auth" replace />;
   }
   
-  // If user does not have a complete profile and the route requires a profile (and they're not already on the profile page)
+  // If user needs to complete profile and hasn't yet (and they're not already on the profile page)
   if (requireProfile && !hasCompletedProfile && location.pathname !== '/profile') {
     return <Navigate to="/profile" replace />;
+  }
+  
+  // If user needs to complete questionnaire and hasn't yet (and they're not already on the questionnaire page)
+  if (requireQuestionnaire && !hasCompletedQuestionnaire && hasCompletedProfile && location.pathname !== '/questionnaire') {
+    return <Navigate to="/questionnaire" replace />;
   }
   
   return <>{children}</>;
@@ -94,12 +150,12 @@ const App = () => {
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/profile" element={
-                  <ProtectedRoute requireProfile={false}>
+                  <ProtectedRoute requireProfile={false} requireQuestionnaire={false}>
                     <Profile />
                   </ProtectedRoute>
                 } />
                 <Route path="/questionnaire" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute requireQuestionnaire={false}>
                     <Questionnaire />
                   </ProtectedRoute>
                 } />

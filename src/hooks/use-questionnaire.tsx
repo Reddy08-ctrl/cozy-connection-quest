@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getQuestions, saveUserAnswers, Question, UserAnswer } from '@/services/questionnaireService';
 import { useAuth } from './use-auth';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useQuestionnaire = () => {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export const useQuestionnaire = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasCompletedQuestionnaire, setHasCompletedQuestionnaire] = useState<boolean | null>(null);
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -20,6 +22,24 @@ export const useQuestionnaire = () => {
       try {
         const fetchedQuestions = await getQuestions();
         setQuestions(fetchedQuestions);
+        
+        // Check if user has already completed the questionnaire
+        const { data, error } = await supabase
+          .from('user_answers')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (error) {
+          console.error('Error checking user answers:', error);
+        } else {
+          // If user has answers, prefill the form
+          const userAnswers: Record<number, string> = {};
+          data?.forEach(answer => {
+            userAnswers[answer.question_id] = answer.answer;
+          });
+          setAnswers(userAnswers);
+          setHasCompletedQuestionnaire(data && data.length > 0);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch questions';
         setError(message);
@@ -63,6 +83,7 @@ export const useQuestionnaire = () => {
       const success = await saveUserAnswers(userAnswers);
       
       if (success) {
+        setHasCompletedQuestionnaire(true);
         toast.success('Your answers have been saved');
         return true;
       } else {
@@ -84,6 +105,7 @@ export const useQuestionnaire = () => {
     isLoading,
     isSaving,
     error,
+    hasCompletedQuestionnaire,
     setAnswer,
     submitAnswers
   };

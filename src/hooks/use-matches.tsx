@@ -1,18 +1,15 @@
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import * as matchService from '@/services/matchService';
 import { useAuth } from './use-auth';
-import { generateRandomInterests } from '@/utils/mockData';
 
 export interface Match {
   id: number;
-  user1Id: string;
-  user2Id: string;
   matchScore: number;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: Date;
-  otherUser: {
+  user: {
     id: string;
     name: string;
     avatar: string;
@@ -36,7 +33,6 @@ export const useMatches = () => {
       setError(null);
 
       try {
-        // Changed function name to match what's in matchService
         const fetchedMatches = await matchService.getUserMatches(user.id);
         setMatches(fetchedMatches);
       } catch (err) {
@@ -54,11 +50,11 @@ export const useMatches = () => {
   const handleAcceptMatch = async (matchId: number) => {
     try {
       await matchService.updateMatchStatus(matchId, 'accepted');
-      setMatches(prevMatches => prevMatches.map(match => 
+      setMatches(prevMatches => prevMatches?.map(match => 
         match.id === matchId 
           ? { ...match, status: 'accepted' } 
           : match
-      ));
+      ) ?? null);
       return true;
     } catch (error) {
       console.error('Error accepting match:', error);
@@ -70,11 +66,11 @@ export const useMatches = () => {
   const handleRejectMatch = async (matchId: number) => {
     try {
       await matchService.updateMatchStatus(matchId, 'rejected');
-      setMatches(prevMatches => prevMatches.map(match => 
+      setMatches(prevMatches => prevMatches?.map(match => 
         match.id === matchId 
           ? { ...match, status: 'rejected' } 
           : match
-      ));
+      ) ?? null);
       return true;
     } catch (error) {
       console.error('Error rejecting match:', error);
