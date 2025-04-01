@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { User, getUserProfile } from './userService';
 
@@ -13,15 +14,27 @@ export interface Match {
 // Get all potential matches for a user (excludes already matched users)
 export const getPotentialMatches = async (userId: string): Promise<User[]> => {
   try {
-    // ... your fetching logic
+    // In a real app, this would implement complex matching logic
+    // For now, we'll fetch all profiles except the current user
+    const { data: potentialMatches, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', userId)
+      .limit(10);
+    
+    if (error) {
+      console.error('Error getting potential matches:', error);
+      return [];
+    }
+    
     return (potentialMatches || []).map(profile => ({
-      id: profile?.id,
-      email: profile?.email,
-      name: profile?.name,
-      avatar: profile?.avatar || '', // Safe access with fallback
-      bio: profile?.bio,
-      location: profile?.location,
-      gender: profile?.gender,
+      id: profile?.id || '',
+      email: profile?.email || '',
+      name: profile?.name || '',
+      avatar: profile?.avatar || '', 
+      bio: profile?.bio || '',
+      location: profile?.location || '',
+      gender: profile?.gender || '',
       dateOfBirth: profile?.date_of_birth ? new Date(profile.date_of_birth) : undefined,
       created_at: profile?.created_at ? new Date(profile.created_at) : new Date()
     }));
@@ -96,7 +109,7 @@ export const createMatch = async (
       id: newMatch.id,
       user: matchUser,
       matchScore: newMatch.match_score,
-      status: newMatch.status,
+      status: newMatch.status as 'pending' | 'accepted' | 'rejected',
       createdAt: new Date(newMatch.created_at)
     };
   } catch (error) {
@@ -146,35 +159,37 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
       return [];
     }
     
-    return (matches || []).map(match => {
+    const formattedMatches = [];
+    
+    for (const match of (matches || [])) {
       const isUser1 = match.user_id_1 === userId;
-      const otherUser = isUser1 
-        ? match.profiles?.['matches_user_id_2_fkey'] 
-        : match.profiles?.['matches_user_id_1_fkey'];
+      const otherUserProfile = isUser1 ? match.profiles?.['matches_user_id_2_fkey'] : match.profiles?.['matches_user_id_1_fkey'];
       
-      if (!otherUser) {
+      if (!otherUserProfile) {
         console.error('Match user data is missing for match:', match.id);
-        return null;
+        continue;
       }
       
-      return {
+      formattedMatches.push({
         id: match.id,
         user: {
-          id: otherUser.id,
-          email: otherUser.email,
-          name: otherUser.name,
-          avatar: otherUser.avatar || '',
-          bio: otherUser.bio,
-          location: otherUser.location,
-          gender: otherUser.gender,
-          dateOfBirth: otherUser.date_of_birth ? new Date(otherUser.date_of_birth) : undefined,
-          created_at: otherUser.created_at ? new Date(otherUser.created_at) : new Date()
+          id: otherUserProfile.id,
+          email: otherUserProfile.email,
+          name: otherUserProfile.name,
+          avatar: otherUserProfile.avatar || '',
+          bio: otherUserProfile.bio,
+          location: otherUserProfile.location,
+          gender: otherUserProfile.gender,
+          dateOfBirth: otherUserProfile.date_of_birth ? new Date(otherUserProfile.date_of_birth) : undefined,
+          created_at: otherUserProfile.created_at ? new Date(otherUserProfile.created_at) : new Date()
         },
         matchScore: match.match_score,
         status: match.status,
         createdAt: new Date(match.created_at)
-      };
-    }).filter(Boolean) as Match[];
+      });
+    }
+    
+    return formattedMatches;
   } catch (error) {
     console.error('Error getting user matches:', error);
     return [];
@@ -195,15 +210,17 @@ export const getFavoriteMatches = async (userId: string): Promise<Match[]> => {
 };
 
 // Add a match to favorites
-export const addMatchToFavorites = async (matchId: number): Promise<void> => {
+export const addMatchToFavorites = async (matchId: number): Promise<boolean> => {
   // This would store in a favorites table in a real app
   console.log(`Added match ${matchId} to favorites`);
+  return true;
 };
 
 // Remove a match from favorites
-export const removeMatchFromFavorites = async (matchId: number): Promise<void> => {
+export const removeMatchFromFavorites = async (matchId: number): Promise<boolean> => {
   // This would remove from a favorites table in a real app
   console.log(`Removed match ${matchId} from favorites`);
+  return true;
 };
 
 // Accept a match

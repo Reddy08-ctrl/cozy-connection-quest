@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -19,9 +20,16 @@ export interface MatchCardProps {
   onAccept?: () => Promise<boolean>;
   onReject?: () => Promise<boolean>;
   isFavorite?: boolean;
+  onToggleFavorite?: () => Promise<boolean>;
 }
 
-export const MatchCard = ({ match, onAccept, onReject, isFavorite }: MatchCardProps) => {
+export const MatchCard = ({ 
+  match, 
+  onAccept, 
+  onReject, 
+  isFavorite,
+  onToggleFavorite 
+}: MatchCardProps) => {
   const navigate = useNavigate();
   
   return (
@@ -42,7 +50,7 @@ export const MatchCard = ({ match, onAccept, onReject, isFavorite }: MatchCardPr
           <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent" />
           
           <div className="absolute top-4 right-4 flex items-center space-x-1 bg-white/30 backdrop-blur-md rounded-full px-3 py-1.5">
-            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <Star className={`w-4 h-4 ${isFavorite ? 'text-amber-400 fill-amber-400' : 'text-amber-400'}`} />
             <span className="text-sm font-medium">{match.compatibility}% Match</span>
           </div>
         </div>
@@ -91,7 +99,7 @@ export const MatchCard = ({ match, onAccept, onReject, isFavorite }: MatchCardPr
               className="rounded-full flex-1 bg-white/20 border-white/30 hover:bg-primary/20 hover:text-primary"
               onClick={onAccept}
             >
-              <Heart className="h-5 w-5" />
+              <Heart className={`h-5 w-5 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
               <span className="sr-only">Like</span>
             </Button>
           </div>
