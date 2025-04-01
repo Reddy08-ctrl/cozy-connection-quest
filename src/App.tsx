@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
@@ -27,8 +26,9 @@ const queryClient = new QueryClient({
 });
 
 // Component to handle protected routes
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute = ({ children, requireProfile = true }: { children: React.ReactNode, requireProfile?: boolean }) => {
+  const { user, loading, hasCompletedProfile } = useAuth();
+  const location = useLocation();
   
   if (loading) {
     return (
@@ -43,6 +43,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+  
+  // If user does not have a complete profile and the route requires a profile (and they're not already on the profile page)
+  if (requireProfile && !hasCompletedProfile && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
   }
   
   return <>{children}</>;
@@ -89,7 +94,7 @@ const App = () => {
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/profile" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute requireProfile={false}>
                     <Profile />
                   </ProtectedRoute>
                 } />

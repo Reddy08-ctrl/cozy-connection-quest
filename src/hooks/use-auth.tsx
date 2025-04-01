@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
   logout: () => void;
+  hasCompletedProfile: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +22,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
+
+  // Function to check if user has completed their profile
+  const checkProfileCompletion = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      // Profile is complete if it has name, bio, location, and gender filled out
+      const isComplete = profile && 
+        profile.name && 
+        profile.bio && 
+        profile.location && 
+        profile.gender;
+      
+      setHasCompletedProfile(!!isComplete);
+      return !!isComplete;
+    } catch (err) {
+      console.error('Error checking profile completion:', err);
+      setHasCompletedProfile(false);
+      return false;
+    }
+  };
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -44,6 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (profileError) {
                   console.error('Error getting user profile from session:', profileError);
                   setUser(null);
+                  setHasCompletedProfile(false);
                 } else if (profile) {
                   setUser({
                     id: session.user.id,
@@ -56,13 +84,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
                     created_at: profile.created_at ? new Date(profile.created_at) : undefined
                   });
+                  
+                  // Check if profile is complete
+                  const isComplete = !!(profile.name && profile.bio && profile.location && profile.gender);
+                  setHasCompletedProfile(isComplete);
                 }
               } catch (err) {
                 console.error('Error processing auth state change:', err);
                 setUser(null);
+                setHasCompletedProfile(false);
               }
             } else {
               setUser(null);
+              setHasCompletedProfile(false);
             }
             
             setLoading(false);
@@ -83,6 +117,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (profileError) {
             console.error('Error getting user profile from initial session:', profileError);
             setUser(null);
+            setHasCompletedProfile(false);
           } else if (profile) {
             setUser({
               id: session.user.id,
@@ -95,6 +130,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               dateOfBirth: profile.date_of_birth ? new Date(profile.date_of_birth) : undefined,
               created_at: profile.created_at ? new Date(profile.created_at) : undefined
             });
+            
+            // Check if profile is complete
+            const isComplete = !!(profile.name && profile.bio && profile.location && profile.gender);
+            setHasCompletedProfile(isComplete);
           }
         }
         
@@ -197,7 +236,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         initialized,
         login,
         register,
-        logout
+        logout,
+        hasCompletedProfile
       }}
     >
       {children}

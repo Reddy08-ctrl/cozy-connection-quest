@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -142,4 +141,32 @@ export const analyzeConversation = async (messages: AIMessage[]): Promise<string
     console.error('Error analyzing conversation:', error);
     return null;
   }
+};
+
+// Fix the comparison error (number === string)
+export const generateCompatibilityScore = (answers1: Record<string, string>, answers2: Record<string, string>): number => {
+  if (!answers1 || !answers2) {
+    return 0;
+  }
+  
+  let matchingAnswers = 0;
+  let totalQuestions = 0;
+  
+  // Compare answers
+  for (const questionId in answers1) {
+    if (questionId in answers2) {
+      totalQuestions++;
+      // Convert both to string before comparing
+      if (String(answers1[questionId]) === String(answers2[questionId])) {
+        matchingAnswers++;
+      }
+    }
+  }
+  
+  if (totalQuestions === 0) {
+    return 0;
+  }
+  
+  // Calculate percentage match
+  return Math.round((matchingAnswers / totalQuestions) * 100);
 };

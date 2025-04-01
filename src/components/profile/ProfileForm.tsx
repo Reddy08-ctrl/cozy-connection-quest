@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,17 +15,35 @@ import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useProfileData } from '@/hooks/use-profile-data';
+import { useAuth } from '@/hooks/use-auth';
 
-const ProfileForm = () => {
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [location, setLocation] = useState('');
-  const [gender, setGender] = useState('');
-  const [date, setDate] = React.useState<Date | undefined>();
+interface ProfileFormProps {
+  isEditMode?: boolean;
+}
+
+const ProfileForm = ({ isEditMode = false }: ProfileFormProps) => {
+  const { user } = useAuth();
+  const [avatar, setAvatar] = useState<string | null>(user?.avatar || null);
+  const [name, setName] = useState(user?.name || '');
+  const [bio, setBio] = useState(user?.bio || '');
+  const [location, setLocation] = useState(user?.location || '');
+  const [gender, setGender] = useState(user?.gender || '');
+  const [date, setDate] = React.useState<Date | undefined>(user?.dateOfBirth);
   const { saveProfile, isLoading } = useProfileData();
   
   const navigate = useNavigate();
+
+  // Load user data when available
+  useEffect(() => {
+    if (user) {
+      setAvatar(user.avatar || null);
+      setName(user.name || '');
+      setBio(user.bio || '');
+      setLocation(user.location || '');
+      setGender(user.gender || '');
+      setDate(user.dateOfBirth);
+    }
+  }, [user]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,8 +75,13 @@ const ProfileForm = () => {
         dateOfBirth: date,
       });
       
-      toast.success('Profile saved successfully');
-      navigate('/questionnaire');
+      toast.success(isEditMode ? 'Profile updated successfully' : 'Profile saved successfully');
+      
+      // After creating a profile for the first time, navigate to questionnaire
+      // For edits, stay on the profile page
+      if (!isEditMode) {
+        navigate('/questionnaire');
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
       toast.error('Failed to save profile. Please try again.');
@@ -73,8 +96,14 @@ const ProfileForm = () => {
       className="w-full max-w-lg mx-auto space-y-8"
     >
       <div className="text-center">
-        <h1 className="text-3xl font-serif font-semibold tracking-tight">Create Your Profile</h1>
-        <p className="text-muted-foreground mt-2">Tell us about yourself to find better matches</p>
+        <h1 className="text-3xl font-serif font-semibold tracking-tight">
+          {isEditMode ? 'Edit Your Profile' : 'Create Your Profile'}
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          {isEditMode 
+            ? 'Update your profile information' 
+            : 'Tell us about yourself to find better matches'}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -112,7 +141,7 @@ const ProfileForm = () => {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="gender">Gender</Label>
-            <Select onValueChange={setGender}>
+            <Select value={gender} onValueChange={setGender}>
               <SelectTrigger className="bg-white/50 backdrop-blur-sm border-white/30">
                 <SelectValue placeholder="Select gender" />
               </SelectTrigger>
@@ -182,7 +211,7 @@ const ProfileForm = () => {
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Saving...' : 'Continue'}
+          {isLoading ? 'Saving...' : isEditMode ? 'Update Profile' : 'Continue'}
         </Button>
       </form>
     </motion.div>

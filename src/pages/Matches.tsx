@@ -1,226 +1,233 @@
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, Heart, X, MessageCircle, User } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MatchCard } from '@/components/matches/MatchCard';
+import { useMatches } from '@/hooks/use-matches';
+import { generateRandomInterests } from '@/utils/mockData';
+import { getAge } from '@/lib/utils';
 import Layout from '@/components/layout/Layout';
 import PageTransition from '@/components/ui/PageTransition';
-import { useMatches } from '@/hooks/use-matches';
-import { Match } from '@/services/matchService';
-import { differenceInYears } from 'date-fns';
 
 const Matches = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
   const { 
     matches, 
-    favoriteMatches, 
-    loadingMatches, 
-    addToFavorites, 
-    removeFromFavorites, 
-    acceptMatch, 
+    isLoading, 
+    error, 
+    activeTab, 
+    setActiveTab,
+    acceptMatch,
     rejectMatch 
   } = useMatches();
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'score' | 'date' | 'name'>('score');
-  const [showFavorites, setShowFavorites] = useState(false);
-  
-  const calculateAge = (dateOfBirth: Date | undefined | null) => {
-    if (!dateOfBirth) return null;
-    return differenceInYears(new Date(), new Date(dateOfBirth));
+
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  const toggleFavorite = () => {
+    setIsFavorite(!isFavorite);
   };
-  
-  const filteredMatches = (showFavorites ? favoriteMatches : matches)
-    .filter(match => 
-      match.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      match.user.location?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'score':
-          return b.matchScore - a.matchScore;
-        case 'date':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'name':
-          return a.user.name.localeCompare(b.user.name);
-        default:
-          return 0;
-      }
-    });
-  
-  const handleAddToFavorites = async (matchId: number) => {
-    try {
-      await addToFavorites(matchId);
-      return true;
-    } catch (error) {
-      console.error('Error adding to favorites:', error);
-      toast({
-        title: 'Failed to add to favorites',
-        description: 'Please try again later.',
-        variant: 'destructive'
-      });
-      return false;
+
+  const filteredMatches = useMemo(() => {
+    if (!matches) return [];
+    
+    switch (activeTab) {
+      case 'new':
+        return matches.filter(match => match.status === 'pending');
+      case 'favorites':
+        return matches.filter(match => match.status === 'accepted');
+      case 'recommended':
+      default:
+        return matches.sort((a, b) => b.matchScore - a.matchScore);
     }
+  }, [matches, activeTab]);
+
+  const handleAccept = async (matchId: number) => {
+    return await acceptMatch(matchId);
   };
-  
-  const handleRemoveFromFavorites = async (matchId: number) => {
-    try {
-      await removeFromFavorites(matchId);
-      return true;
-    } catch (error) {
-      console.error('Error removing from favorites:', error);
-      toast({
-        title: 'Failed to remove from favorites',
-        description: 'Please try again later.',
-        variant: 'destructive'
-      });
-      return false;
-    }
+
+  const handleReject = async (matchId: number) => {
+    return await rejectMatch(matchId);
   };
-  
-  const handleAcceptMatch = async (matchId: number) => {
-    try {
-      const success = await acceptMatch(matchId);
-      if (success) {
-        toast({
-          title: 'Match accepted!',
-          description: 'You can now chat with this person.'
-        });
-      }
-      return success;
-    } catch (error) {
-      console.error('Error accepting match:', error);
-      toast({
-        title: 'Failed to accept match',
-        description: 'Please try again later.',
-        variant: 'destructive'
-      });
-      return false;
-    }
-  };
-  
-  const handleRejectMatch = async (matchId: number) => {
-    try {
-      const success = await rejectMatch(matchId);
-      if (success) {
-        toast({
-          title: 'Match rejected',
-          description: 'The match has been declined.'
-        });
-      }
-      return success;
-    } catch (error) {
-      console.error('Error rejecting match:', error);
-      toast({
-        title: 'Failed to reject match',
-        description: 'Please try again later.',
-        variant: 'destructive'
-      });
-      return false;
-    }
-  };
-  
-  const handleMessage = (userId: string) => {
-    navigate(`/chat/${userId}`);
-  };
-  
-  const handleViewProfile = (userId: string) => {
-    navigate(`/profile/${userId}`);
-  };
-  
+
   return (
     <Layout>
       <PageTransition>
-        <div className="container max-w-6xl mx-auto p-4 sm:p-6">
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col md:flex-row justify-between gap-4">
-              <h1 className="text-3xl font-serif">Your Matches</h1>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input 
-                    placeholder="Search matches..." 
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <Select 
-                    value={sortBy} 
-                    onValueChange={(value) => setSortBy(value as 'score' | 'date' | 'name')}
-                  >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="score">Match Score</SelectItem>
-                      <SelectItem value="date">Most Recent</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    variant={showFavorites ? "default" : "outline"} 
-                    onClick={() => setShowFavorites(!showFavorites)}
-                  >
-                    <Heart className="mr-2 h-4 w-4" />
-                    Favorites
-                  </Button>
-                </div>
-              </div>
-            </div>
+        <div className="min-h-[calc(100vh-4rem)] py-12">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 z-[-1]" />
+          
+          <div className="container max-w-5xl mx-auto px-4">
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center mb-10"
+            >
+              <h1 className="text-3xl font-serif font-semibold mb-2">
+                Discover Your Potential Matches
+              </h1>
+              <p className="text-muted-foreground">
+                Explore our curated list of potential connections
+              </p>
+            </motion.div>
             
-            {loadingMatches ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="animate-pulse bg-muted rounded-lg h-72"></div>
-                ))}
-              </div>
-            ) : filteredMatches.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredMatches.map((match) => (
-                  <MatchCard
-                    key={match.id}
-                    user={match.user}
-                    matchScore={match.matchScore}
-                    status={match.status}
-                    isFavorite={favoriteMatches.some(f => f.id === match.id)}
-                    onAccept={() => handleAcceptMatch(match.id)}
-                    onReject={() => handleRejectMatch(match.id)}
-                    onAddToFavorites={() => handleAddToFavorites(match.id)}
-                    onRemoveFromFavorites={() => handleRemoveFromFavorites(match.id)}
-                    onMessage={() => handleMessage(match.user.id)}
-                    onViewProfile={() => handleViewProfile(match.user.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="bg-muted rounded-full p-6">
-                  <Heart className="h-12 w-12 text-muted-foreground" />
-                </div>
-                <h2 className="text-2xl font-medium">No matches found</h2>
-                <p className="text-muted-foreground text-center max-w-md">
-                  {showFavorites ? 
-                    "You haven't added any matches to your favorites yet." : 
-                    "Complete your profile and answer more questions to get better matches."}
-                </p>
-                {showFavorites && (
-                  <Button 
-                    onClick={() => setShowFavorites(false)}
-                    className="mt-2"
-                  >
-                    View All Matches
-                  </Button>
+            <Tabs defaultValue="recommended" className="w-full">
+              <TabsList className="w-full flex justify-center rounded-full bg-secondary/80 p-1">
+                <TabsTrigger value="recommended" onClick={() => setActiveTab('recommended')} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Recommended</TabsTrigger>
+                <TabsTrigger value="new" onClick={() => setActiveTab('new')} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">New</TabsTrigger>
+                <TabsTrigger value="favorites" onClick={() => setActiveTab('favorites')} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Favorites</TabsTrigger>
+              </TabsList>
+              <TabsContent value="recommended" className="space-y-4">
+                {isLoading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="space-y-3">
+                        <Skeleton className="h-40 w-full rounded-xl" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-            )}
+                
+                {error && (
+                  <div className="text-center text-red-500">
+                    Error: {error}
+                  </div>
+                )}
+                
+                {!isLoading && !error && filteredMatches && filteredMatches.length === 0 && (
+                  <div className="text-center text-muted-foreground">
+                    No matches found in recommended.
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                  {filteredMatches.map(match => (
+                    <MatchCard
+                      key={match.id}
+                      match={{
+                        id: match.id.toString(),
+                        name: match.otherUser.name,
+                        age: getAge(match.otherUser.dateOfBirth),
+                        location: match.otherUser.location || 'Unknown',
+                        bio: match.otherUser.bio || 'No bio available',
+                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        compatibility: match.matchScore,
+                        interests: generateRandomInterests()
+                      }}
+                      onAccept={() => handleAccept(match.id)}
+                      onReject={() => handleReject(match.id)}
+                      isFavorite={match.status === 'accepted'}
+                      onToggleFavorite={match.status === 'accepted' 
+                        ? () => handleReject(match.id) 
+                        : () => handleAccept(match.id)}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+              <TabsContent value="new" className="space-y-4">
+                {isLoading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="space-y-3">
+                        <Skeleton className="h-40 w-full rounded-xl" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {error && (
+                  <div className="text-center text-red-500">
+                    Error: {error}
+                  </div>
+                )}
+                
+                {!isLoading && !error && filteredMatches && filteredMatches.length === 0 && (
+                  <div className="text-center text-muted-foreground">
+                    No new matches found.
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                  {filteredMatches.map(match => (
+                    <MatchCard
+                      key={match.id}
+                      match={{
+                        id: match.id.toString(),
+                        name: match.otherUser.name,
+                        age: getAge(match.otherUser.dateOfBirth),
+                        location: match.otherUser.location || 'Unknown',
+                        bio: match.otherUser.bio || 'No bio available',
+                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        compatibility: match.matchScore,
+                        interests: generateRandomInterests()
+                      }}
+                      onAccept={() => handleAccept(match.id)}
+                      onReject={() => handleReject(match.id)}
+                      isFavorite={match.status === 'accepted'}
+                      onToggleFavorite={match.status === 'accepted' 
+                        ? () => handleReject(match.id) 
+                        : () => handleAccept(match.id)}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+              <TabsContent value="favorites" className="space-y-4">
+                {isLoading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="space-y-3">
+                        <Skeleton className="h-40 w-full rounded-xl" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {error && (
+                  <div className="text-center text-red-500">
+                    Error: {error}
+                  </div>
+                )}
+                
+                {!isLoading && !error && filteredMatches && filteredMatches.length === 0 && (
+                  <div className="text-center text-muted-foreground">
+                    No favorite matches yet.
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                  {filteredMatches.map(match => (
+                    <MatchCard
+                      key={match.id}
+                      match={{
+                        id: match.id.toString(),
+                        name: match.otherUser.name,
+                        age: getAge(match.otherUser.dateOfBirth),
+                        location: match.otherUser.location || 'Unknown',
+                        bio: match.otherUser.bio || 'No bio available',
+                        avatar: match.otherUser.avatar || 'https://via.placeholder.com/150',
+                        compatibility: match.matchScore,
+                        interests: generateRandomInterests()
+                      }}
+                      onAccept={() => handleAccept(match.id)}
+                      onReject={() => handleReject(match.id)}
+                      isFavorite={match.status === 'accepted'}
+                      onToggleFavorite={match.status === 'accepted' 
+                        ? () => handleReject(match.id) 
+                        : () => handleAccept(match.id)}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </PageTransition>

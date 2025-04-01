@@ -1,27 +1,46 @@
-
-import { useState, useEffect } from 'react';
-import { getUserMatches, updateMatchStatus, Match } from '@/services/matchService';
-import { useAuth } from './use-auth';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
+import * as matchService from '@/services/matchService';
+import { useAuth } from './use-auth';
+import { generateRandomInterests } from '@/utils/mockData';
+
+export interface Match {
+  id: number;
+  user1Id: string;
+  user2Id: string;
+  matchScore: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: Date;
+  otherUser: {
+    id: string;
+    name: string;
+    avatar: string;
+    bio: string;
+    location: string;
+    dateOfBirth: Date;
+  };
+}
 
 export const useMatches = () => {
-  const { user } = useAuth();
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [matches, setMatches] = useState<Match[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'recommended' | 'new' | 'favorites'>('recommended');
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchMatches = async () => {
       if (!user) return;
-      
       setIsLoading(true);
+      setError(null);
+
       try {
-        const fetchedMatches = await getUserMatches(user.id);
+        const fetchedMatches = await matchService.getMatchesForUser(user.id);
         setMatches(fetchedMatches);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch matches';
         setError(message);
+        toast.error(message);
       } finally {
         setIsLoading(false);
       }
@@ -30,86 +49,45 @@ export const useMatches = () => {
     fetchMatches();
   }, [user]);
 
-  const acceptMatch = async (matchId: number): Promise<boolean> => {
-    if (!user) {
-      toast.error('You must be logged in to accept matches');
-      return false;
-    }
-
+  const handleAcceptMatch = async (matchId: number) => {
     try {
-      const success = await updateMatchStatus(matchId, user.id, 'accepted');
-      
-      if (success) {
-        // Update the local state
-        setMatches(prev => 
-          prev.map(match => 
-            match.id === matchId 
-              ? { ...match, status: 'accepted' } 
-              : match
-          )
-        );
-        
-        toast.success('Match accepted!');
-        return true;
-      } else {
-        throw new Error('Failed to accept match');
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to accept match';
-      toast.error(message);
+      await matchService.updateMatchStatus(matchId, 'accepted');
+      setMatches(prevMatches => prevMatches.map(match => 
+        match.id === matchId 
+          ? { ...match, status: 'accepted' } 
+          : match
+      ));
+      return true;
+    } catch (error) {
+      console.error('Error accepting match:', error);
+      toast.error('Failed to accept match');
       return false;
     }
   };
 
-  const rejectMatch = async (matchId: number): Promise<boolean> => {
-    if (!user) {
-      toast.error('You must be logged in to reject matches');
-      return false;
-    }
-
+  const handleRejectMatch = async (matchId: number) => {
     try {
-      const success = await updateMatchStatus(matchId, user.id, 'rejected');
-      
-      if (success) {
-        // Update the local state
-        setMatches(prev => 
-          prev.map(match => 
-            match.id === matchId 
-              ? { ...match, status: 'rejected' } 
-              : match
-          )
-        );
-        
-        toast.success('Match rejected');
-        return true;
-      } else {
-        throw new Error('Failed to reject match');
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reject match';
-      toast.error(message);
+      await matchService.updateMatchStatus(matchId, 'rejected');
+      setMatches(prevMatches => prevMatches.map(match => 
+        match.id === matchId 
+          ? { ...match, status: 'rejected' } 
+          : match
+      ));
+      return true;
+    } catch (error) {
+      console.error('Error rejecting match:', error);
+      toast.error('Failed to reject match');
       return false;
     }
   };
-
-  const filteredMatches = matches.filter(match => {
-    if (activeTab === 'recommended') {
-      return match.status === 'pending' && match.matchScore >= 0.7;
-    } else if (activeTab === 'new') {
-      return match.status === 'pending';
-    } else if (activeTab === 'favorites') {
-      return match.status === 'accepted';
-    }
-    return true;
-  });
 
   return {
-    matches: filteredMatches,
+    matches,
     isLoading,
     error,
     activeTab,
     setActiveTab,
-    acceptMatch,
-    rejectMatch
+    acceptMatch: handleAcceptMatch,
+    rejectMatch: handleRejectMatch
   };
 };
