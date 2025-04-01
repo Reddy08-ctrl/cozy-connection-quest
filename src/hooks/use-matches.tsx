@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import * as matchService from '@/services/matchService';
@@ -35,7 +36,8 @@ export const useMatches = () => {
       setError(null);
 
       try {
-        const fetchedMatches = await matchService.getMatchesForUser(user.id);
+        // Changed function name to match what's in matchService
+        const fetchedMatches = await matchService.getUserMatches(user.id);
         setMatches(fetchedMatches);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch matches';

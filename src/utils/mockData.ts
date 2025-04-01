@@ -1,4 +1,3 @@
-
 export interface Question {
   id: string;
   text: string;
@@ -125,3 +124,27 @@ export const matches: Match[] = [
     interests: ['Music', 'Concerts', 'Record Collecting', 'Comedy']
   }
 ];
+
+// List of possible interests for randomly generating user interests
+const possibleInterests = [
+  'Cooking', 'Art', 'Travel', 'Photography', 'Hiking', 'Technology', 
+  'Dogs', 'Cats', 'Craft Beer', 'Yoga', 'Literature', 'Coffee', 
+  'Meditation', 'Music', 'Concerts', 'Record Collecting', 'Comedy',
+  'Movies', 'Gaming', 'Fitness', 'Running', 'Swimming', 'Dancing',
+  'Theater', 'Writing', 'Painting', 'Volunteering', 'Gardening'
+];
+
+/**
+ * Generates a random set of interests for a user
+ * @param count Number of interests to generate (default: 3-5)
+ * @returns Array of random interests
+ */
+export const generateRandomInterests = (count?: number): string[] => {
+  // If count not provided, generate random number between 3-5
+  const numInterests = count || Math.floor(Math.random() * 3) + 3;
+  
+  // Shuffle array and take the first numInterests elements
+  return [...possibleInterests]
+    .sort(() => 0.5 - Math.random())
+    .slice(0, numInterests);
+};
