@@ -52,12 +52,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        setInitialized(true);
-        
         // Set up auth state listener FIRST
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            setLoading(true);
+            console.log('Auth state changed:', event, !!session);
             
             if (session?.user) {
               try {
@@ -105,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // THEN check for existing session
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initial session check:', !!session);
         
         if (session?.user) {
           // Get the user profile
@@ -137,6 +136,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
+        setInitialized(true);
         setLoading(false);
         
         return () => {
@@ -145,6 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (err) {
         console.error('Auth initialization error:', err);
         setError('Failed to initialize authentication');
+        setInitialized(true);
         setLoading(false);
       }
     };
@@ -157,19 +158,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
+      console.log('Attempting login with:', credentials.email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password
       });
       
       if (error) {
+        console.error('Login error:', error);
         throw new Error(error.message);
       }
       
+      console.log('Login successful:', !!data.user);
       // User state will be updated by the auth state listener
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
+      console.error('Login error caught:', message);
       setError(message);
       toast.error(message);
       return false;
@@ -183,6 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
+      console.log('Attempting registration with:', data.email);
       const { error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -194,15 +200,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (error) {
+        console.error('Registration error:', error);
         throw new Error(error.message);
       }
       
+      console.log('Registration successful');
       toast.success('Registration successful! Check your email to confirm your account.');
       // User state will be updated by the auth state listener
       
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
+      console.error('Registration error caught:', message);
       setError(message);
       toast.error(message);
       return false;
@@ -213,11 +222,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
+      console.log('Attempting logout');
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error('Logout error:', error);
         toast.error('Error signing out');
+      } else {
+        console.log('Logout successful');
       }
       
       // User state will be updated by the auth state listener

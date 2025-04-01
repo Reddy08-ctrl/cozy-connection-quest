@@ -17,7 +17,7 @@ const AuthForm = () => {
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login, register, initialized } = useAuth();
 
   const toggleFormType = () => {
     setFormType(formType === 'login' ? 'register' : 'login');
@@ -25,6 +25,12 @@ const AuthForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email.trim() || !password.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -34,24 +40,30 @@ const AuthForm = () => {
         success = await login({ email, password });
         if (success) {
           toast.success('Login successful');
-          navigate('/profile');
+          // The redirect will be handled by the ProtectedRoute component in App.tsx
+        } else {
+          // If login returns false, there was an error that's already been handled
+          setIsSubmitting(false);
         }
       } else {
         if (!name.trim()) {
           toast.error('Please enter your name');
+          setIsSubmitting(false);
           return;
         }
         
         success = await register({ email, password, name });
         if (success) {
           toast.success('Registration successful! Check your email for verification.');
-          navigate('/profile');
+          // The redirect will be handled by the ProtectedRoute component in App.tsx
+        } else {
+          // If register returns false, there was an error that's already been handled
+          setIsSubmitting(false);
         }
       }
     } catch (error) {
       console.error('Authentication error:', error);
       toast.error('An unexpected error occurred');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -115,7 +127,7 @@ const AuthForm = () => {
           />
         </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting || !initialized}>
           {isSubmitting ? (
             <span className="flex items-center">
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>

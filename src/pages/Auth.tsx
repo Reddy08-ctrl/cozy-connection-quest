@@ -1,12 +1,21 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AuthForm from '@/components/auth/AuthForm';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+  
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/profile');
+    }
+  }, [user, loading, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">
