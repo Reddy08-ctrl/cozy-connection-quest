@@ -40,11 +40,6 @@ const AuthForm = () => {
       return;
     }
     
-    if (!initialized) {
-      toast.error('Authentication system is not yet initialized');
-      return;
-    }
-    
     setIsSubmitting(true);
     
     try {
@@ -161,7 +156,7 @@ const AuthForm = () => {
         <Button 
           type="submit" 
           className="w-full animate-pulse-light hover:animate-none" 
-          disabled={isSubmitting || !initialized}
+          disabled={isSubmitting}
         >
           {isSubmitting ? (
             <span className="flex items-center">
