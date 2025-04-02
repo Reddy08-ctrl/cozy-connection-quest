@@ -2,20 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import QuestionCard from '@/components/questionnaire/QuestionCard';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/layout/Layout';
 import PageTransition from '@/components/ui/PageTransition';
 import { Progress } from '@/components/ui/progress';
-import { questions } from '@/utils/mockData';
 import { toast } from 'sonner';
 import { useQuestionnaire } from '@/hooks/use-questionnaire';
+import QuestionCard from '@/components/questionnaire/QuestionCard';
 
 const Questionnaire = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
   const { 
+    questions, 
     answers, 
     setAnswer, 
     submitAnswers, 
@@ -25,23 +25,51 @@ const Questionnaire = () => {
 
   // If questionnaire is already completed, redirect to matches
   useEffect(() => {
-    if (hasCompletedQuestionnaire && !isLoading) {
+    if (hasCompletedQuestionnaire === true && !isLoading) {
+      console.log('Questionnaire already completed, redirecting to matches');
       navigate('/matches');
     }
   }, [hasCompletedQuestionnaire, isLoading, navigate]);
 
   useEffect(() => {
-    // Calculate progress
-    const progressValue = (currentQuestionIndex / questions.length) * 100;
-    setProgress(progressValue);
-  }, [currentQuestionIndex]);
+    if (questions.length > 0) {
+      // Calculate progress
+      const progressValue = (currentQuestionIndex / questions.length) * 100;
+      setProgress(progressValue);
+    }
+  }, [currentQuestionIndex, questions.length]);
 
-  const handleAnswer = (id: string, answer: string) => {
-    setAnswer(parseInt(id), answer);
+  if (questions.length === 0 && !isLoading) {
+    // Handle the case when no questions are available
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h2 className="text-2xl font-serif mb-4">No Questions Available</h2>
+            <p className="text-muted-foreground mb-6">
+              We couldn't find any questions. The administrator may need to add questions to the database.
+            </p>
+            <Button onClick={() => navigate('/profile')}>Go to Profile</Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const handleAnswer = (questionId: number, answer: string) => {
+    console.log('Setting answer for question:', questionId, 'Answer:', answer);
+    setAnswer(questionId, answer);
   };
 
   const handleNext = async () => {
-    if (!answers[parseInt(questions[currentQuestionIndex].id)]) {
+    const currentQuestion = questions[currentQuestionIndex];
+    
+    if (!currentQuestion) {
+      console.error('Current question is undefined');
+      return;
+    }
+    
+    if (!answers[currentQuestion.id]) {
       toast.error('Please answer the question before proceeding');
       return;
     }
@@ -50,10 +78,14 @@ const Questionnaire = () => {
       setCurrentQuestionIndex((prev) => prev + 1);
     } else {
       // Submit questionnaire
+      console.log('Submitting questionnaire with answers:', answers);
       const success = await submitAnswers();
       if (success) {
+        toast.success('Questionnaire completed!');
         // Navigate to matches page
         navigate('/matches');
+      } else {
+        toast.error('Failed to submit answers. Please try again.');
       }
     }
   };
@@ -64,8 +96,6 @@ const Questionnaire = () => {
     }
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
-
   if (isLoading) {
     return (
       <Layout>
@@ -73,6 +103,19 @@ const Questionnaire = () => {
           <div className="text-center">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading questionnaire...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const currentQuestion = questions[currentQuestionIndex];
+  if (!currentQuestion) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-muted-foreground">No questions available.</p>
           </div>
         </div>
       </Layout>
@@ -115,7 +158,11 @@ const Questionnaire = () => {
             <AnimatePresence mode="wait">
               <div key={currentQuestionIndex} className="mb-10">
                 <QuestionCard 
-                  question={currentQuestion} 
+                  question={{
+                    id: currentQuestion.id.toString(),
+                    text: currentQuestion.question,
+                    type: 'text', // Default to text, could be extended later
+                  }}
                   onAnswer={handleAnswer} 
                 />
               </div>

@@ -5,6 +5,7 @@ import AuthForm from '@/components/auth/AuthForm';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -18,15 +19,28 @@ const Auth = () => {
       console.log('Auth page - Authenticated user detected, redirecting');
       // First check profile completion
       if (!user.bio || !user.location || !user.gender) {
+        console.log('Auth page - Profile incomplete, redirecting to profile page');
         navigate('/profile');
       } else {
-        // If profile is complete, check questionnaire completion via API
+        // If profile is complete, check questionnaire completion via Supabase directly
         const checkQuestionnaire = async () => {
           try {
-            const { data, error } = await fetch(`/api/user/questionnaire-status?userId=${user.id}`).then(res => res.json());
-            if (error) throw new Error(error.message);
+            console.log('Auth page - Checking questionnaire completion for user:', user.id);
+            const { data, error } = await supabase
+              .from('user_answers')
+              .select('id')
+              .eq('user_id', user.id)
+              .limit(1);
             
-            if (data && data.completed) {
+            if (error) {
+              console.error('Error checking questionnaire completion from Supabase:', error);
+              throw new Error(error.message);
+            }
+            
+            const hasCompletedQuestionnaire = data && data.length > 0;
+            console.log('Auth page - Questionnaire completed:', hasCompletedQuestionnaire);
+            
+            if (hasCompletedQuestionnaire) {
               navigate('/matches');
             } else {
               navigate('/questionnaire');

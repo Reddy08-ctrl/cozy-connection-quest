@@ -15,41 +15,62 @@ export const useQuestionnaire = () => {
   const [hasCompletedQuestionnaire, setHasCompletedQuestionnaire] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const fetchQuestions = async () => {
-      if (!user) return;
+    const fetchQuestionsAndAnswers = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
       
       setIsLoading(true);
       try {
-        const fetchedQuestions = await getQuestions();
-        setQuestions(fetchedQuestions);
+        console.log('Fetching questions and user answers for user:', user.id);
+        
+        // Fetch questions from the database
+        const { data: fetchedQuestions, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .order('id', { ascending: true });
+        
+        if (questionsError) {
+          console.error('Error fetching questions:', questionsError);
+          throw new Error(questionsError.message);
+        }
+        
+        setQuestions(fetchedQuestions || []);
+        console.log('Fetched questions:', fetchedQuestions?.length);
         
         // Check if user has already completed the questionnaire
-        const { data, error } = await supabase
+        const { data: userAnswers, error: answersError } = await supabase
           .from('user_answers')
           .select('*')
           .eq('user_id', user.id);
         
-        if (error) {
-          console.error('Error checking user answers:', error);
-        } else {
-          // If user has answers, prefill the form
-          const userAnswers: Record<number, string> = {};
-          data?.forEach(answer => {
-            userAnswers[answer.question_id] = answer.answer;
-          });
-          setAnswers(userAnswers);
-          setHasCompletedQuestionnaire(data && data.length > 0);
+        if (answersError) {
+          console.error('Error checking user answers:', answersError);
+          throw new Error(answersError.message);
         }
+        
+        // If user has answers, prefill the form
+        const existingAnswers: Record<number, string> = {};
+        userAnswers?.forEach(answer => {
+          existingAnswers[answer.question_id] = answer.answer;
+        });
+        
+        setAnswers(existingAnswers);
+        setHasCompletedQuestionnaire(userAnswers && userAnswers.length > 0);
+        console.log('User has completed questionnaire:', userAnswers && userAnswers.length > 0);
+        
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch questions';
+        console.error('Error in fetchQuestionsAndAnswers:', message);
         setError(message);
-        toast.error(message);
+        toast.error('Failed to load questionnaire');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchQuestions();
+    fetchQuestionsAndAnswers();
   }, [user]);
 
   const setAnswer = (questionId: number, answer: string) => {
@@ -74,21 +95,63 @@ export const useQuestionnaire = () => {
     setError(null);
 
     try {
+      console.log('Submitting answers for user:', user.id);
       const userAnswers: UserAnswer[] = Object.keys(answers).map(key => ({
         userId: user.id,
         questionId: parseInt(key),
         answer: answers[parseInt(key)]
       }));
 
-      const success = await saveUserAnswers(userAnswers);
-      
-      if (success) {
-        setHasCompletedQuestionnaire(true);
-        toast.success('Your answers have been saved');
-        return true;
-      } else {
-        throw new Error('Failed to save answers');
+      // Process each answer
+      for (const answer of userAnswers) {
+        console.log('Processing answer for question:', answer.questionId);
+        
+        // Check if answer exists already
+        const { data: existingAnswer, error: checkError } = await supabase
+          .from('user_answers')
+          .select('id')
+          .eq('user_id', answer.userId)
+          .eq('question_id', answer.questionId)
+          .single();
+        
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+          console.error('Error checking existing answer:', checkError);
+          continue;
+        }
+        
+        if (existingAnswer) {
+          console.log('Updating existing answer for question:', answer.questionId);
+          // Update existing answer
+          const { error: updateError } = await supabase
+            .from('user_answers')
+            .update({ answer: answer.answer })
+            .eq('id', existingAnswer.id);
+          
+          if (updateError) {
+            console.error('Error updating answer:', updateError);
+            throw new Error('Failed to update answer: ' + updateError.message);
+          }
+        } else {
+          console.log('Inserting new answer for question:', answer.questionId);
+          // Insert new answer
+          const { error: insertError } = await supabase
+            .from('user_answers')
+            .insert({
+              user_id: answer.userId,
+              question_id: answer.questionId,
+              answer: answer.answer
+            });
+          
+          if (insertError) {
+            console.error('Error inserting answer:', insertError);
+            throw new Error('Failed to insert answer: ' + insertError.message);
+          }
+        }
       }
+      
+      setHasCompletedQuestionnaire(true);
+      toast.success('Your answers have been saved');
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to submit answers';
       setError(message);
