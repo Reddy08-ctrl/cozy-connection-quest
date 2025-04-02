@@ -40,6 +40,27 @@ const useHasCompletedQuestionnaire = (userId: string) => {
       }
 
       try {
+        // First check if the questions table has any records
+        const { data: questions, error: questionsError } = await supabase
+          .from('questions')
+          .select('count')
+          .single();
+        
+        if (questionsError) {
+          console.error('Error checking questions:', questionsError);
+        }
+        
+        // If there are no questions, consider questionnaire as completed
+        const hasQuestions = questions && questions.count > 0;
+        
+        if (!hasQuestions) {
+          console.log('No questions in database, considering questionnaire completed');
+          setHasCompleted(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // If there are questions, check if the user has answered any
         const { data, error } = await supabase
           .from('user_answers')
           .select('id')
@@ -98,11 +119,14 @@ const ProtectedRoute = ({ children, requireProfile = true, requireQuestionnaire 
   
   // If user needs to complete profile and hasn't yet (and they're not already on the profile page)
   if (requireProfile && !hasCompletedProfile && location.pathname !== '/profile') {
+    console.log('User needs to complete profile, redirecting to profile page');
     return <Navigate to="/profile" replace />;
   }
   
   // If user needs to complete questionnaire and hasn't yet (and they're not already on the questionnaire page)
+  // Only redirect to questionnaire if there are actually questions to answer
   if (requireQuestionnaire && !hasCompletedQuestionnaire && hasCompletedProfile && location.pathname !== '/questionnaire') {
+    console.log('User needs to complete questionnaire, redirecting to questionnaire page');
     return <Navigate to="/questionnaire" replace />;
   }
   

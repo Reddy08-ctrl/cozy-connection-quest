@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -31,6 +30,15 @@ const Questionnaire = () => {
     }
   }, [hasCompletedQuestionnaire, isLoading, navigate]);
 
+  // Redirect to matches if there are no questions
+  useEffect(() => {
+    if (!isLoading && questions.length === 0) {
+      console.log('No questions available, redirecting to matches');
+      toast.info('No questionnaire questions are available. Redirecting to matches.');
+      navigate('/matches');
+    }
+  }, [questions, isLoading, navigate]);
+
   useEffect(() => {
     if (questions.length > 0) {
       // Calculate progress
@@ -38,23 +46,6 @@ const Questionnaire = () => {
       setProgress(progressValue);
     }
   }, [currentQuestionIndex, questions.length]);
-
-  if (questions.length === 0 && !isLoading) {
-    // Handle the case when no questions are available
-    return (
-      <Layout>
-        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-          <div className="text-center max-w-md mx-auto p-6">
-            <h2 className="text-2xl font-serif mb-4">No Questions Available</h2>
-            <p className="text-muted-foreground mb-6">
-              We couldn't find any questions. The administrator may need to add questions to the database.
-            </p>
-            <Button onClick={() => navigate('/profile')}>Go to Profile</Button>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   const handleAnswer = (questionId: number, answer: string) => {
     console.log('Setting answer for question:', questionId, 'Answer:', answer);
@@ -109,6 +100,24 @@ const Questionnaire = () => {
     );
   }
 
+  // We don't need this check anymore since we're redirecting in the useEffect
+  // but keeping a simpler version as a fallback
+  if (questions.length === 0) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h2 className="text-2xl font-serif mb-4">No Questions Available</h2>
+            <p className="text-muted-foreground mb-6">
+              We couldn't find any questions. Redirecting to matches page...
+            </p>
+            <Button onClick={() => navigate('/matches')}>Go to Matches</Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   const currentQuestion = questions[currentQuestionIndex];
   if (!currentQuestion) {
     return (
@@ -116,6 +125,7 @@ const Questionnaire = () => {
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
           <div className="text-center">
             <p className="text-muted-foreground">No questions available.</p>
+            <Button onClick={() => navigate('/matches')} className="mt-4">Go to Matches</Button>
           </div>
         </div>
       </Layout>

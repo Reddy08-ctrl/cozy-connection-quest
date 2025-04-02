@@ -18,8 +18,27 @@ const Profile = () => {
   useEffect(() => {
     const checkRedirect = async () => {
       if (hasCompletedProfile && user) {
-        // Check if user has completed questionnaire
+        // First check if there are any questions
         try {
+          const { data: questions, error: questionsError } = await supabase
+            .from('questions')
+            .select('count')
+            .single();
+            
+          if (questionsError) {
+            console.error('Error checking questions:', questionsError);
+          }
+          
+          // If there are no questions, go directly to matches
+          const hasQuestions = questions && questions.count > 0;
+          
+          if (!hasQuestions) {
+            console.log('No questions in database, redirecting to matches');
+            navigate('/matches');
+            return;
+          }
+          
+          // Check if user has completed questionnaire
           const { data } = await supabase
             .from('user_answers')
             .select('id')
@@ -37,6 +56,8 @@ const Profile = () => {
           }
         } catch (err) {
           console.error('Error checking questionnaire status:', err);
+          // On error, default to matches page
+          navigate('/matches');
         }
       }
     };
