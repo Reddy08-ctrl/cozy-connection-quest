@@ -113,6 +113,104 @@ export type Database = {
         }
         Relationships: []
       }
+      memories: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          image_url: string | null
+          memory_branch_id: string
+          memory_tree_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          memory_branch_id: string
+          memory_tree_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          memory_branch_id?: string
+          memory_tree_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memories_memory_branch_id_fkey"
+            columns: ["memory_branch_id"]
+            isOneToOne: false
+            referencedRelation: "memory_branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memories_memory_tree_id_fkey"
+            columns: ["memory_tree_id"]
+            isOneToOne: false
+            referencedRelation: "memory_trees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_branches: {
+        Row: {
+          created_at: string
+          id: string
+          memory_tree_id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          memory_tree_id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          memory_tree_id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_branches_memory_tree_id_fkey"
+            columns: ["memory_tree_id"]
+            isOneToOne: false
+            referencedRelation: "memory_trees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_trees: {
+        Row: {
+          created_at: string
+          id: string
+          user_id_1: string
+          user_id_2: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id_1: string
+          user_id_2: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id_1?: string
+          user_id_2?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
