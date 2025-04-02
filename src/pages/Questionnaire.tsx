@@ -159,7 +159,7 @@ const Questionnaire = () => {
               <div key={currentQuestionIndex} className="mb-10">
                 <QuestionCard 
                   question={{
-                    id: currentQuestion.id.toString(),
+                    id: currentQuestion.id,
                     text: currentQuestion.question,
                     type: 'text', // Default to text, could be extended later
                   }}

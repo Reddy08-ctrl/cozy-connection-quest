@@ -8,12 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 
 interface QuestionCardProps {
   question: {
-    id: string;
+    id: number;
     text: string;
     type: 'multiple_choice' | 'text';
     options?: string[];
   };
-  onAnswer: (id: string, answer: string) => void;
+  onAnswer: (id: number, answer: string) => void;
 }
 
 const QuestionCard = ({ question, onAnswer }: QuestionCardProps) => {
