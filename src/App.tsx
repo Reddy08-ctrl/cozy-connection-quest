@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Questionnaire from "./pages/Questionnaire";
 import Matches from "./pages/Matches";
 import Chat from "./pages/Chat";
+import MemoryTree from "./pages/MemoryTree";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -191,6 +192,11 @@ const App = () => {
                 <Route path="/chat/:id" element={
                   <ProtectedRoute>
                     <Chat />
+                  </ProtectedRoute>
+                } />
+                <Route path="/memory-tree/:id" element={
+                  <ProtectedRoute>
+                    <MemoryTree />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />

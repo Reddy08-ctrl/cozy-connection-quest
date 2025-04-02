@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
+import { scaleIn } from '@/utils/animations';
 
 type FormType = 'login' | 'register';
 
@@ -50,21 +52,28 @@ const AuthForm = () => {
       
       if (formType === 'login') {
         console.log('Attempting login with credentials');
-        success = await login({ email, password });
+        // Use Supabase directly for more reliable authentication
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
         
-        if (success) {
-          console.log('Login succeeded, redirecting...');
+        if (error) {
+          console.error('Login error:', error.message);
+          toast.error(error.message || 'Login failed');
+          setIsSubmitting(false);
+          return;
+        }
+        
+        if (data.user) {
+          console.log('Login succeeded via direct Supabase auth, redirecting...');
           toast.success('Login successful');
           // Clear form
           setEmail('');
           setPassword('');
           setName('');
-          // Reset submission state
-          setIsSubmitting(false);
-        } else {
-          console.log('Login failed, no success returned');
-          // If login returns false, there was an error that's already been handled
-          setIsSubmitting(false);
+          // Navigate to profile on success
+          navigate('/profile');
         }
       } else {
         if (!name.trim()) {
@@ -80,26 +89,21 @@ const AuthForm = () => {
           setEmail('');
           setPassword('');
           setName('');
-          // Reset submission state
-          setIsSubmitting(false);
         } else {
           console.log('Registration failed, no success returned');
-          // If register returns false, there was an error that's already been handled
-          setIsSubmitting(false);
         }
       }
     } catch (error) {
       console.error('Authentication error:', error);
       toast.error('An unexpected error occurred');
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
+      {...scaleIn}
       className="w-full max-w-md mx-auto glass-card rounded-2xl p-8 space-y-6"
     >
       <div className="text-center">
@@ -156,7 +160,7 @@ const AuthForm = () => {
 
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full animate-pulse-light hover:animate-none" 
           disabled={isSubmitting || !initialized}
         >
           {isSubmitting ? (
